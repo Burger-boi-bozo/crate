@@ -1,0 +1,42 @@
+services:
+  crate:
+    image: ${CRATE_IMAGE:?Set CRATE_IMAGE in .env}
+    container_name: crate
+    pull_policy: always
+    restart: unless-stopped
+    environment:
+      UDM_DATA_DIR: /data
+      UDM_DOWNLOAD_DIR: /downloads
+      UDM_MAX_CONCURRENT: ${UDM_MAX_CONCURRENT:-2}
+      UDM_USERNAME: ${UDM_USERNAME:?Set UDM_USERNAME in .env}
+      UDM_PASSWORD: ${UDM_PASSWORD:?Set UDM_PASSWORD in .env}
+      TZ: ${TZ:-America/Chicago}
+    volumes:
+      - ./data:/data
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads
+    networks:
+      - crate_private
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: crate-tunnel
+    pull_policy: always
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:?Set CLOUDFLARE_TUNNEL_TOKEN in .env}
+    depends_on:
+      crate:
+        condition: service_healthy
+    networks:
+      - crate_private
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  crate_private:
+    name: crate_private
+

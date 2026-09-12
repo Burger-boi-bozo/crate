@@ -1,0 +1,21 @@
+services:
+  crate:
+    build: .
+    container_name: crate
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      UDM_DATA_DIR: /data
+      UDM_DOWNLOAD_DIR: /downloads
+      UDM_MAX_CONCURRENT: ${UDM_MAX_CONCURRENT:-2}
+      UDM_USERNAME: ${UDM_USERNAME:-}
+      UDM_PASSWORD: ${UDM_PASSWORD:-}
+      TZ: ${TZ:-America/Chicago}
+    volumes:
+      - ./data:/data
+      - ${DOWNLOAD_PATH:-./downloads}:/downloads
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d10">
+  <title>Crate — Download Manager</title>
+  <link rel="icon" href="/assets/favicon.svg">
+  <link rel="stylesheet" href="/assets/styles.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar">
+      <a class="brand" href="#" aria-label="Crate home">
+        <span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0 4.5-4.5M12 15l-4.5-4.5M5 19h14"/></svg></span>
+        <span>Crate</span>
+      </a>
+      <nav aria-label="Downloads">
+        <button class="nav-item active" data-view="all"><span class="nav-icon">⌂</span><span>Overview</span></button>
+        <button class="nav-item" data-view="active"><span class="nav-icon">↓</span><span>Active</span><b id="activeBadge" class="badge">0</b></button>
+        <button class="nav-item" data-view="queued"><span class="nav-icon">≡</span><span>Queued</span></button>
+        <button class="nav-item" data-view="finished"><span class="nav-icon">✓</span><span>History</span></button>
+      </nav>
+      <div class="sidebar-bottom">
+        <div class="storage-title"><span>Storage</span><span id="storagePercent">—</span></div>
+        <div class="storage-bar"><i id="storageFill"></i></div>
+        <div id="storageText" class="storage-text">Checking space…</div>
+        <button id="openSettings" class="nav-item"><span class="nav-icon">⚙</span><span>Settings</span></button>
+      </div>
+    </aside>
+
+    <main>
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">DOWNLOAD CENTER</p>
+          <h1 id="pageTitle">Overview</h1>
+        </div>
+        <div class="header-actions">
+          <label class="search"><span>⌕</span><input id="searchInput" type="search" placeholder="Search downloads" autocomplete="off"></label>
+          <button id="addButton" class="primary-button"><span>＋</span> New download</button>
+        </div>
+      </header>
+
+      <section class="stats" aria-label="Download statistics">
+        <article><span class="stat-icon lavender">↓</span><div><strong id="activeStat">0</strong><small>Active downloads</small></div></article>
+        <article><span class="stat-icon mint">⇣</span><div><strong id="speedStat">0 B/s</strong><small>Combined speed</small></div></article>
+        <article><span class="stat-icon amber">≡</span><div><strong id="queueStat">0</strong><small>Waiting in queue</small></div></article>
+        <article><span class="stat-icon blue">✓</span><div><strong id="doneStat">0</strong><small>Completed</small></div></article>
+      </section>
+
+      <section class="content-card">
+        <div class="card-heading">
+          <div><h2 id="listTitle">All downloads</h2><p id="listSubtitle">Everything currently moving and previously downloaded.</p></div>
+          <button id="refreshButton" class="icon-button" title="Refresh">↻</button>
+        </div>
+        <div id="downloadList" class="download-list" aria-live="polite"></div>
+        <div id="emptyState" class="empty-state hidden">
+          <div class="empty-illustration"><span>↓</span></div>
+          <h3>No downloads here yet</h3>
+          <p>Paste a link to start your first download. Crate will pick the best tool automatically.</p>
+          <button class="primary-button open-add">Add a download</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="addDialog">
+    <form id="addForm" method="dialog">
+      <div class="dialog-heading">
+        <div><p class="eyebrow">ADD TO QUEUE</p><h2>New download</h2></div>
+        <button type="button" class="dialog-close" data-close aria-label="Close">×</button>
+      </div>
+      <label class="field"><span>URL <b>Required</b></span><textarea id="urlInput" rows="4" placeholder="Paste one link per line…" required></textarea><small>HTTP, FTP, magnet links, video sites, and image galleries are supported.</small></label>
+      <div class="field-grid">
+        <label class="field"><span>Download tool</span><select id="toolInput"><option value="auto">Auto detect</option><option value="aria2">aria2 — files & torrents</option><option value="yt-dlp">yt-dlp — video & audio</option><option value="gallery-dl">gallery-dl — image galleries</option><option value="curl">curl — direct file</option></select></label>
+        <label class="field"><span>Organize into</span><select id="categoryInput"><option>Other</option><option>Videos</option><option>Music</option><option>Pictures</option><option>Documents</option><option>Software</option><option>Archives</option></select></label>
+      </div>
+      <div class="field-grid">
+        <label class="field"><span>Priority</span><select id="priorityInput"><option value="10">High</option><option value="0" selected>Normal</option><option value="-10">Low</option></select></label>
+        <label class="field"><span>Mode</span><select id="mediaMode"><option value="video">Best video + audio</option><option value="audio">Audio only (MP3)</option></select></label>
+      </div>
+      <label class="check-row"><input id="playlistInput" type="checkbox"><span><b>Allow full playlists</b><small>When off, video tools download only the linked item.</small></span></label>
+      <div id="detectedTool" class="detected hidden"></div>
+      <div class="dialog-actions"><button type="button" class="secondary-button" data-close>Cancel</button><button type="submit" class="primary-button" id="submitDownload">Add to queue</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="settingsDialog" class="settings-dialog">
+    <div class="dialog-heading"><div><p class="eyebrow">SERVER</p><h2>Settings & tools</h2></div><button type="button" class="dialog-close" data-close-settings>×</button></div>
+    <div id="settingsBody"></div>
+    <div class="dialog-actions"><button type="button" class="primary-button" data-close-settings>Done</button></div>
+  </dialog>
+
+  <div id="toastRegion" class="toasts" aria-live="assertive"></div>
+  <script src="/assets/app.js" defer></script>
+</body>
+</html>
+
