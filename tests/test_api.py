@@ -1,5 +1,8 @@
 import os
+from dataclasses import replace
 from pathlib import Path
+
+import pytest
 
 os.environ["UDM_DATA_DIR"] = "/tmp/crate-test-data"
 os.environ["UDM_DOWNLOAD_DIR"] = "/tmp/crate-test-downloads"
@@ -9,6 +12,20 @@ os.environ["UDM_INTERNAL_TOKEN"] = "test-internal-token"
 from fastapi.testclient import TestClient
 
 from app.main import app
+import app.main as main
+from app.database import Database
+from app.manager import DownloadManager
+
+
+@pytest.fixture(autouse=True)
+def isolated_manager(tmp_path, monkeypatch):
+    # Each TestClient opens its own event loop. Never carry asyncio locks or
+    # scheduler events from the previous client's loop into another test.
+    settings = replace(main.settings, data_dir=tmp_path / "data", download_dir=tmp_path / "downloads")
+    database = Database(settings.database_path)
+    monkeypatch.setattr(main, "settings", settings)
+    monkeypatch.setattr(main, "database", database)
+    monkeypatch.setattr(main, "manager", DownloadManager(database, settings))
 
 
 def test_health_and_download_lifecycle(tmp_path: Path):
