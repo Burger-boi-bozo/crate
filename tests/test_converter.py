@@ -12,7 +12,7 @@ from fastapi.testclient import TestClient
 
 from app.converter import Config, Queue, Submission, create_app
 from app.media_policy import guarded_resolver, public_ip, validate_url
-from app.media_runner import PublicYoutubeDL, convert_file, deny_external_download, probe
+from app.media_runner import PublicYoutubeDL, convert_file, deny_external_download, error_code, format_options, probe, safe_diagnostic
 
 HEADERS = {"X-Crate-Request": "1", "Origin": "https://testserver"}
 
@@ -23,28 +23,34 @@ def app(tmp_path, monkeypatch):
         # Tests exercise real API/ownership/limits while preventing remote jobs.
         await asyncio.Event().wait()
     monkeypatch.setattr(Queue, "run", no_network)
-    return create_app(Config(data_dir=tmp_path, access_code="classroom-test-code", secret="session-test-secret"))
+    return create_app(Config(data_dir=tmp_path, secret="session-test-secret"))
 
 
-def sign_in(client):
-    assert client.post("/api/session", json={"code": "classroom-test-code"}, headers=HEADERS).status_code == 200
+def start_session(client):
+    response = client.get("/api/session")
+    assert response.status_code == 200
+    assert response.json()["access_code_required"] is False
 
 
-def test_access_control_and_cross_browser_isolation(app):
+def test_anonymous_sessions_and_cross_browser_isolation(app, monkeypatch):
+    # A leftover secret from an older Render Blueprint must not restore a gate.
+    monkeypatch.setenv("CRATE_ACCESS_CODE", "an-old-code")
     with TestClient(app, base_url="https://testserver") as client:
-        assert client.get("/").status_code == 200
+        page = client.get("/")
+        assert page.status_code == 200
+        assert 'id="login-form"' not in page.text and 'id="access-code"' not in page.text
+        assert "1080p" in page.text
         assert client.get("/api/jobs").status_code == 401
-        assert client.post("/api/session", json={"code": "wrong"}, headers=HEADERS).status_code == 401
-        sign_in(client)
+        start_session(client)
         cookie = client.cookies.get("crate_session")
         assert client.get("/api/session").json()["authenticated"]
         created = client.post("/api/jobs", json={"url": "https://youtu.be/BaW_jenozKc", "format": "mp4"}, headers=HEADERS)
         assert created.status_code == 202
         job_id = created.json()["id"]
         assert "owner" not in created.json() and "path" not in created.json()
-        # Another browser with the same shared access code has different jobs.
+        # Another anonymous browser has different jobs.
         client.cookies.clear()
-        sign_in(client)
+        start_session(client)
         assert client.get("/api/jobs").json() == []
         assert client.get(f"/api/jobs/{job_id}/file").status_code == 404
         assert client.post(f"/api/jobs/{job_id}/cancel", headers=HEADERS).status_code == 404
@@ -56,7 +62,7 @@ def test_access_control_and_cross_browser_isolation(app):
 
 def test_cookie_csrf_and_bounded_requests(app):
     with TestClient(app, base_url="https://testserver") as client:
-        result = client.post("/api/session", json={"code": "classroom-test-code"}, headers=HEADERS)
+        result = client.get("/api/session")
         cookie = result.headers["set-cookie"].lower()
         assert "httponly" in cookie and "secure" in cookie and "samesite=strict" in cookie
         body = {"url": "https://youtu.be/BaW_jenozKc"}
@@ -68,13 +74,56 @@ def test_cookie_csrf_and_bounded_requests(app):
 
 @pytest.mark.parametrize("url", [
     "file:///etc/passwd", "https://127.0.0.1/file", "https://169.254.169.254/latest/meta-data",
-    "https://youtube.com.evil.example/watch", "https://youtube.com@127.0.0.1/a",
+    "https://youtube.com@127.0.0.1/a", "https://media.internal/file.mp4",
     "https://youtube.com:8443/watch", "https://youtube.com\\@evil.example/a",
-    "https://youtube.com/a\nheader", "http://youtube.com/watch?v=a", "https://localhost/a",
+    "https://youtube.com/a\nheader", "https://localhost/a",
 ])
-def test_rejects_unsafe_or_unsupported_source_urls(url):
+def test_rejects_unsafe_source_urls(url):
     with pytest.raises(ValueError):
         validate_url(url)
+
+
+@pytest.mark.parametrize("url", [
+    "https://www.instagram.com/reel/example/", "https://www.pinterest.com/pin/123/",
+    "https://podcasts.apple.com/us/podcast/example/id123?i=456",
+    "https://media.example.org/lesson.webm", "http://media.example.org/lesson.mp3",
+    "https://www.bilibili.com/video/example", "https://rumble.com/example.html",
+])
+def test_public_sources_are_not_limited_to_a_small_allowlist(url):
+    assert validate_url(url) == url
+
+
+@pytest.mark.parametrize("url, message", [
+    ("https://open.spotify.com/track/example", "Spotify"),
+    ("https://music.apple.com/us/album/example/123?i=456", "Apple Music"),
+])
+def test_subscription_music_fails_clearly_without_consuming_a_job(app, url, message):
+    with TestClient(app, base_url="https://testserver") as client:
+        start_session(client)
+        response = client.post("/api/jobs", json={"url": url, "format": "mp3"}, headers=HEADERS)
+        assert response.status_code == 422
+        assert message in response.text
+        assert not app.state.queue.jobs and not app.state.queue.daily
+
+
+def test_provider_failures_are_distinguishable_and_logs_redact_urls():
+    assert error_code(Exception("Sign in to confirm you’re not a bot")) == "host_blocked"
+    assert error_code(Exception("This private video requires login")) == "sign_in_required"
+    assert error_code(Exception("HTTP Error 403: Forbidden")) == "source_forbidden"
+    assert error_code(Exception("Requested format is not available")) == "format_unavailable"
+    diagnostic = safe_diagnostic(Exception("HTTP 403 https://cdn.example/file?token=secret cookie=other\nnext line"))
+    assert "secret" not in diagnostic and "other" not in diagnostic and "\n" not in diagnostic
+    assert "403" in diagnostic
+
+
+def test_selects_1080p_instead_of_720p_or_4k():
+    formats = [{"format_id": str(height), "url": f"https://media.example/{height}.mp4",
+                "ext": "mp4", "height": height, "width": height * 16 // 9,
+                "vcodec": "avc1", "acodec": "aac", "protocol": "https"}
+               for height in (360, 720, 1080, 2160)]
+    with PublicYoutubeDL({"quiet": True, "proxy": "", **format_options("mp4")}) as downloader:
+        selected = downloader.process_ie_result({"id": "test", "title": "Test", "formats": formats}, download=False)
+    assert selected["height"] == 1080
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.1.1.1", "169.254.169.254", "100.64.0.1", "::1", "fd00::1", "::ffff:127.0.0.1", "224.0.0.1", "64:ff9b::7f00:1"])
@@ -97,7 +146,7 @@ def test_transport_cannot_bypass_guard():
 
 def test_queue_limits_and_expired_file_cleanup(app):
     with TestClient(app, base_url="https://testserver") as client:
-        sign_in(client)
+        start_session(client)
         body = {"url": "https://youtu.be/BaW_jenozKc"}
         ids = [client.post("/api/jobs", json=body, headers=HEADERS).json()["id"] for _ in range(2)]
         assert client.post("/api/jobs", json=body, headers=HEADERS).status_code == 429
@@ -114,7 +163,7 @@ def test_queue_limits_and_expired_file_cleanup(app):
 
 def test_download_attachment_and_bounded_repeats(app):
     with TestClient(app, base_url="https://testserver") as client:
-        sign_in(client)
+        start_session(client)
         job_id = client.post("/api/jobs", json={"url": "https://youtu.be/BaW_jenozKc"}, headers=HEADERS).json()["id"]
         job = app.state.queue.jobs[job_id]
         folder = app.state.queue.folder(job_id)
@@ -144,6 +193,24 @@ def test_actual_mp4_and_mp3_conversion(tmp_path):
         assert any(stream["codec_name"] == codec for stream in details["streams"])
         assert 0 < float(details["format"]["duration"]) < 2
         assert target.stat().st_size > 0
+
+
+@pytest.mark.parametrize("codec,dimensions,expected", [
+    ("libx264", "1920x1080", (1920, 1080)),
+    ("libvpx-vp9", "640x360", (640, 360)),
+    ("libx264", "2560x1440", (1920, 1080)),
+    ("libx264", "1080x1920", (1080, 1920)),
+])
+def test_full_hd_codec_fallback_and_resolution_bounds(tmp_path, codec, dimensions, expected):
+    source = tmp_path / "sample.mkv"
+    target = tmp_path / "result.mp4"
+    subprocess.run(["ffmpeg", "-nostdin", "-y", "-v", "error", "-f", "lavfi", "-i",
+                    f"color=c=blue:s={dimensions}:r=2:d=0.5", "-c:v", codec, "-threads", "1",
+                    "-pix_fmt", "yuv420p", str(source)], check=True, timeout=30)
+    result = convert_file(source, target, "mp4", 600, 100 * 1024 * 1024)
+    video = next(s for s in probe(target)["streams"] if s["codec_type"] == "video")
+    assert (result["width"], result["height"]) == expected
+    assert video["codec_name"] == "h264" and video["pix_fmt"] == "yuv420p"
 
 
 def test_ffmpeg_rejects_playlist_input(tmp_path):

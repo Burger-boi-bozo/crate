@@ -17,8 +17,6 @@ services:
         value: 3.12.14
       - key: NODE_VERSION
         value: 22.22.0
-      - key: CRATE_ACCESS_CODE
-        generateValue: true
       - key: CRATE_SESSION_SECRET
         generateValue: true
       - key: CRATE_SECURE_COOKIE

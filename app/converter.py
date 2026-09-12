@@ -6,6 +6,7 @@ import contextlib
 import hashlib
 import hmac
 import json
+import logging
 import os
 import secrets
 import shutil
@@ -28,16 +29,16 @@ from app.media_policy import MEDIA_HOSTS, validate_url
 
 STATIC = Path(__file__).with_name("converter_static")
 ACTIVE = {"queued", "downloading", "converting"}
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass
 class Config:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("CRATE_DATA_DIR", "converter-data")).resolve())
-    access_code: str = field(default_factory=lambda: os.getenv("CRATE_ACCESS_CODE", ""))
     secret: str = field(default_factory=lambda: os.getenv("CRATE_SESSION_SECRET", "") or secrets.token_urlsafe(48))
     secure_cookie: bool = field(default_factory=lambda: os.getenv("CRATE_SECURE_COOKIE", "true") != "false")
-    max_bytes: int = 50 * 1024 * 1024
-    max_work_bytes: int = 200 * 1024 * 1024
+    max_bytes: int = 100 * 1024 * 1024
+    max_work_bytes: int = 400 * 1024 * 1024
     max_duration: int = 600
     timeout: int = 600
     ttl: int = 3600
@@ -55,10 +56,6 @@ class Submission(BaseModel):
     @classmethod
     def check_url(cls, value):
         return validate_url(value)
-
-
-class Login(BaseModel):
-    code: str = Field(max_length=256)
 
 
 class Queue:
@@ -112,7 +109,7 @@ class Queue:
         job = dict(id=job_id, owner=owner, url=body.url, format=body.format,
                    title=urlsplit(body.url).hostname, status="queued", progress=0,
                    created_at=now, finished_at=None, expires_at=None, error=None,
-                   size=None, filename=None, path=None, serves=0)
+                   size=None, width=None, height=None, error_code=None, filename=None, path=None, serves=0)
         self.jobs[job_id] = job
         self.daily.append(now)
         self.pending.put_nowait(job_id)
@@ -191,6 +188,10 @@ class Queue:
                     elif event.get("kind") == "result":
                         result = event
                     elif event.get("kind") == "error":
+                        job["error_code"] = event.get("code", "source_error")
+                        logger.warning("Conversion %s source=%s code=%s diagnostic=%s", job["id"],
+                                       urlsplit(job["url"]).hostname, job["error_code"],
+                                       event.get("diagnostic", "")[:400])
                         raise ValueError(event.get("message", "The source could not provide this media."))
                 await proc.wait()
             finally:
@@ -206,6 +207,7 @@ class Queue:
                 raise ValueError("No usable file was produced within the size limit.")
             job.update(status="ready", progress=100, title=result["title"][:200],
                        filename=result["filename"], path=str(path), size=path.stat().st_size,
+                       width=result.get("width"), height=result.get("height"),
                        finished_at=time.time(), expires_at=time.time() + self.config.ttl)
             for child in directory.iterdir():
                 if child != path and child.is_file():
@@ -241,9 +243,8 @@ class Queue:
 def create_app(config: Config | None = None) -> FastAPI:
     config = config or Config()
     queue = Queue(config)
-    login_attempts = deque()
     request_times = defaultdict(deque)
-    signing_key = hashlib.sha256((config.secret + ":" + config.access_code).encode()).digest()
+    signing_key = hashlib.sha256(config.secret.encode()).digest()
 
     @asynccontextmanager
     async def lifespan(app):
@@ -263,7 +264,7 @@ def create_app(config: Config | None = None) -> FastAPI:
             if len(identity) != 32 or not hmac.compare_digest(sig, expected) or int(expires) < time.time():
                 raise ValueError()
         except (ValueError, TypeError):
-            raise HTTPException(401, "Enter your access code to continue.")
+            raise HTTPException(401, "Refresh the page to start your download session.")
         return identity
 
     @app.middleware("http")
@@ -308,39 +309,24 @@ def create_app(config: Config | None = None) -> FastAPI:
     @app.get("/api/health")
     async def health():
         ready = bool(shutil.which("ffmpeg") and shutil.which("ffprobe") and shutil.which("node"))
-        return JSONResponse({"status": "ok" if ready else "missing_tools", "converter": "yt-dlp + FFmpeg"}, status_code=200 if ready else 503)
+        return JSONResponse({"status": "ok" if ready else "missing_tools", "converter": "yt-dlp + FFmpeg",
+                             "version": "public-1080p-1", "max_resolution": 1080,
+                             "access_code_required": False}, status_code=200 if ready else 503)
 
     @app.get("/api/session")
-    async def session(request: Request):
-        try:
-            owner(request)
-            authenticated = True
-        except HTTPException:
-            authenticated = False
-        return {"authenticated": authenticated, "configured": bool(config.access_code),
-                "max_minutes": config.max_duration // 60, "max_mb": config.max_bytes // (1024 * 1024),
-                "retention_minutes": config.ttl // 60, "supported_sites": MEDIA_HOSTS}
-
     @app.post("/api/session")
-    async def login(body: Login, request: Request):
-        now = time.monotonic()
-        while login_attempts and login_attempts[0] < now - 60:
-            login_attempts.popleft()
-        if len(login_attempts) >= 15:
-            raise HTTPException(429, "Too many sign-in attempts. Please wait a minute.")
-        login_attempts.append(now)
-        if not config.access_code:
-            raise HTTPException(503, "The site owner needs to set an access code before conversions can start.")
-        if not hmac.compare_digest(body.code.encode(), config.access_code.encode()):
-            raise HTTPException(401, "That access code didn't match. Please try again.")
-        # Preserve browser ownership when re-entering the same code.
+    async def session(request: Request):
+        # Anonymous browser identity keeps downloads separate without a password.
         try:
             identity = owner(request)
         except HTTPException:
             identity = secrets.token_hex(16)
         payload = f"{identity}.{int(time.time()) + 30 * 86400}"
         token = payload + "." + hmac.new(signing_key, payload.encode(), hashlib.sha256).hexdigest()
-        response = JSONResponse({"authenticated": True})
+        response = JSONResponse({"authenticated": True, "configured": True, "access_code_required": False,
+                                 "max_resolution": 1080, "max_minutes": config.max_duration // 60,
+                                 "max_mb": config.max_bytes // (1024 * 1024),
+                                 "retention_minutes": config.ttl // 60, "supported_sites": MEDIA_HOSTS})
         response.set_cookie("crate_session", token, max_age=30 * 86400, httponly=True,
                             secure=config.secure_cookie, samesite="strict", path="/")
         return response

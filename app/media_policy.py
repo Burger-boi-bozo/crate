@@ -10,8 +10,17 @@ MEDIA_HOSTS = (
     "facebook.com", "fb.watch", "soundcloud.com", "bandcamp.com",
     "dailymotion.com", "dai.ly", "twitch.tv", "archive.org", "ted.com",
     "reddit.com", "redd.it", "x.com", "twitter.com", "bsky.app",
-    "wikimedia.org",
+    "wikimedia.org", "pinterest.com", "tumblr.com", "bilibili.com",
+    "rumble.com", "mixcloud.com", "podcasts.apple.com",
 )
+
+
+def source_limitation(hostname: str, path: str) -> str | None:
+    if hostname == "spotify.com" or hostname.endswith(".spotify.com") or hostname == "spotify.link":
+        return "Spotify links cannot be converted to full MP3 files here. Use Spotify's offline feature or a downloadable file from the artist."
+    if hostname == "music.apple.com" and "/post/" not in path:
+        return "Apple Music subscription songs cannot be converted here. Public Apple Podcasts links and your own unprotected audio files are supported."
+    return None
 
 
 def validate_url(value: str, *, source: bool = True) -> str:
@@ -27,11 +36,11 @@ def validate_url(value: str, *, source: bool = True) -> str:
             or port not in (None, 80, 443) or "\\" in value
             or any(ord(c) < 33 or ord(c) == 127 for c in value)):
         raise ValueError("Use a public HTTP or HTTPS media link without login details.")
-    if source and (parsed.scheme != "https" or not any(
-        hostname == root or hostname.endswith("." + root) for root in MEDIA_HOSTS
-    )):
-        raise ValueError("Use an HTTPS link from one of the supported media sites.")
-    # IP literals and local names are never valid downstream media endpoints.
+    # Any public web source may be handled by yt-dlp's site extractors or its
+    # generic embedded/direct-media extractor. MEDIA_HOSTS is just UI examples.
+    if source and (limitation := source_limitation(hostname, parsed.path)):
+        raise ValueError(limitation)
+    # Private IP literals and local names are never valid media endpoints.
     try:
         address = ipaddress.ip_address(hostname)
     except ValueError:

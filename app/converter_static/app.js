@@ -2,7 +2,7 @@
 const $ = selector => document.querySelector(selector);
 const HISTORY_KEY = 'crate-converter-history-v1';
 const activeStates = new Set(['queued', 'downloading', 'converting']);
-let authenticated = false;
+let sessionReady = false;
 let filter = 'all';
 let jobs = [];
 let timer;
@@ -21,25 +21,19 @@ function showError(message) {
   $('#form-error').hidden = !message;
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, retry = true) {
   const response = await fetch(path, {...options, headers: {'X-Crate-Request': '1', ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
   if (response.status === 204) return null;
   const data = await response.json().catch(() => ({detail: 'The server is waking up. Please try again in a minute.'}));
   if (!response.ok) {
-    if (response.status === 401 && path !== '/api/session') {
-      authenticated = false;
-      renderSession();
+    if (response.status === 401 && path !== '/api/session' && retry) {
+      await api('/api/session');
+      return api(path, options, false);
     }
     const detail = Array.isArray(data.detail) ? data.detail[0]?.msg?.replace(/^Value error, /, '') : data.detail;
     throw new Error(detail || 'Something went wrong. Please try again.');
   }
   return data;
-}
-
-function renderSession() {
-  $('#login-form').hidden = authenticated;
-  $('#convert-form').hidden = !authenticated;
-  $('#sign-out').hidden = !authenticated;
 }
 
 function element(tag, className, text) {
@@ -70,7 +64,8 @@ function renderJobs() {
     let source = '';
     try { source = new URL(job.url).hostname.replace(/^www\./, ''); } catch { /* invalid saved history */ }
     const size = job.size ? ` · ${(job.size / 1048576).toFixed(1)} MB` : '';
-    content.append(element('p', 'job-meta', `${(job.format || '').toUpperCase()} · ${source}${size}`));
+    const resolution = job.width && job.height ? ` · ${job.width} × ${job.height}` : '';
+    content.append(element('p', 'job-meta', `${(job.format || '').toUpperCase()} · ${source}${resolution}${size}`));
     const labels = {queued: 'Waiting in the queue…', downloading: 'Downloading the source…', converting: 'Preparing your file…', ready: 'Ready to save', cancelled: 'Cancelled', failed: job.error || 'Conversion failed', expired: 'File expired · convert again to download'};
     content.append(element('p', `job-status${job.status === 'failed' ? ' job-error' : ''}`, labels[job.status] || job.status));
     if (activeStates.has(job.status)) {
@@ -93,7 +88,7 @@ function renderJobs() {
         showError('');
         try {
           // Keep expired-file and quota errors on this page instead of opening
-          // a raw JSON error. Outputs are bounded to 50 MB by the server.
+          // a raw JSON error. Outputs are bounded to 100 MB by the server.
           const response = await fetch(link.href);
           if (!response.ok) {
             const error = await response.json().catch(() => ({}));
@@ -140,7 +135,7 @@ function renderJobs() {
 }
 
 async function sync() {
-  if (!authenticated || syncing) return;
+  if (!sessionReady || syncing) return;
   syncing = true;
   try {
     jobs = await api('/api/jobs');
@@ -156,41 +151,24 @@ async function sync() {
   } finally {
     syncing = false;
     clearTimeout(timer);
-    if (authenticated && jobs.some(x => activeStates.has(x.status))) timer = setTimeout(sync, 2500);
+    if (sessionReady && jobs.some(x => activeStates.has(x.status))) timer = setTimeout(sync, 2500);
   }
 }
 
 async function init() {
   try {
     const session = await api('/api/session');
-    authenticated = session.authenticated;
-    renderSession();
+    sessionReady = true;
+    $('#convert-button').disabled = false;
     $('#limits').textContent = `Up to ${session.max_minutes} minutes · ${session.max_mb} MB per file`;
-    $('#notice').hidden = session.configured;
-    if (!session.configured) $('#notice').textContent = 'This site is nearly ready. The owner needs to set its access code.';
-    if (authenticated) await sync();
+    $('#notice').hidden = true;
+    await sync();
     renderJobs();
   } catch (error) {
     $('#notice').textContent = error.message;
     setTimeout(init, 15000);
   }
 }
-
-$('#login-form').onsubmit = async event => {
-  event.preventDefault();
-  const button = $('#login-form button');
-  button.disabled = true;
-  showError('');
-  try {
-    await api('/api/session', {method: 'POST', body: JSON.stringify({code: $('#access-code').value})});
-    $('#access-code').value = '';
-    authenticated = true;
-    renderSession();
-    await sync();
-    $('#media-url').focus();
-  } catch (error) { showError(error.message); }
-  finally { button.disabled = false; }
-};
 
 $('#convert-form').onsubmit = async event => {
   event.preventDefault();
@@ -205,16 +183,6 @@ $('#convert-form').onsubmit = async event => {
     await sync();
   } catch (error) { showError(error.message); }
   finally { button.disabled = false; }
-};
-
-$('#sign-out').onclick = async () => {
-  try {
-    await api('/api/session', {method: 'DELETE'});
-    authenticated = false;
-    jobs = []; history = []; saveHistory();
-    clearTimeout(timer);
-    renderSession(); renderJobs();
-  } catch (error) { showError(error.message); }
 };
 
 $('#clear-history').onclick = async () => {
