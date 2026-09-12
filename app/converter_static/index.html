@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#eef2eb">
+  <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
+  <title>Crate — A link. A file. Done.</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/styles.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="Crate home"><span class="brand-icon" aria-hidden="true">↧</span> crate<span class="brand-dot">.</span></a>
+      <div class="top-right"><span class="host-label">YOUR MEDIA, READY TO GO</span><button id="sign-out" class="text-button" hidden>Sign out</button></div>
+    </header>
+    <main>
+      <section class="intro">
+        <span class="eyebrow"><span class="tiny-dot"></span> THE LITTLE LINK-TO-FILE TOOL</span>
+        <h1>A link. A file.<br><span>Done.</span></h1>
+        <p>Save a clip for your next lesson, presentation, or offline moment. Paste a public media link and pick your format.</p>
+      </section>
+      <section class="converter-card" aria-label="Convert a media link">
+        <div class="card-header"><span class="step-number">01 / CONVERT</span><span class="card-note">No software to install</span></div>
+        <form id="login-form" hidden>
+          <label for="access-code">Your access code</label>
+          <p class="field-help">Enter the code shared by the site owner. You only need to do this once on this browser.</p>
+          <div class="input-row"><input id="access-code" name="code" type="password" autocomplete="current-password" required maxlength="256" placeholder="Enter your code"><button type="submit" class="primary">Continue <span aria-hidden="true">↗</span></button></div>
+        </form>
+        <form id="convert-form" hidden>
+          <label for="media-url">Paste your link</label>
+          <div class="url-field"><span aria-hidden="true">↗</span><input id="media-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="2048" placeholder="https://www.youtube.com/watch?v=…"></div>
+          <fieldset><legend>Make it a…</legend><div class="format-options">
+            <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 · up to 720p</small></span><span class="radio-mark"></span></label>
+            <label class="format-option"><input type="radio" name="format" value="mp3"><span class="format-icon" aria-hidden="true">♫</span><span><strong>Audio</strong><small>MP3 · 128 kbps</small></span><span class="radio-mark"></span></label>
+          </div></fieldset>
+          <button id="convert-button" type="submit" class="primary convert-button">Create download <span aria-hidden="true">↓</span></button>
+          <p class="limits" id="limits">Up to 10 minutes · 50 MB per file</p>
+        </form>
+        <p id="notice" class="notice" role="status" aria-live="polite">Connecting…</p>
+        <p id="form-error" class="error" role="alert" hidden></p>
+      </section>
+      <div class="supported"><span>WORKS WITH PUBLIC LINKS FROM</span><p>YouTube <i>·</i> Vimeo <i>·</i> TikTok <i>·</i> SoundCloud <i>·</i> and more</p><small>Availability varies by site. Some sources block hosted downloads.</small></div>
+      <section class="downloads-section" aria-labelledby="downloads-heading">
+        <div class="section-heading"><div><span class="step-number">02 / COLLECT</span><h2 id="downloads-heading">Your downloads <span id="job-count">0</span></h2></div><button id="clear-history" class="text-button" hidden>Clear history</button></div>
+        <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
+        <div id="job-list" aria-live="polite"></div>
+        <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
+        <p class="storage-note">Save files to your device when they’re ready. Files expire after an hour and may disappear sooner when the free server sleeps or restarts. Recent history stays in this browser.</p>
+      </section>
+      <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
+        <p><strong>Keep it short.</strong> This small shared service handles one conversion at a time, with a daily allowance of 10 jobs. Long clips, playlists, live streams, and private or protected media aren’t supported.</p>
+        <p><strong>A slow first visit is normal.</strong> Free hosting sleeps when idle. Give it about a minute to wake up.</p>
+        <p><strong>Some sites may say no.</strong> YouTube and other sites can reject requests from cloud servers. If a clip fails, try another public link or a download provided by its creator.</p>
+        <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
+      </div></details>
+    </main>
+    <footer><a class="brand footer-brand" href="/">crate.</a><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+  </div>
+</body>
+</html>

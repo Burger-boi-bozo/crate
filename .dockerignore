@@ -1,10 +1,16 @@
 .git
 .env
 .venv
+.venv-*
+node_modules
+.wrangler
+.dev.vars
+deploy/.env
+converter-data
+test-results
 __pycache__
 .pytest_cache
 data
 downloads
 tests
 *.md
-

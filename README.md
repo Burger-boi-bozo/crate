@@ -1,12 +1,60 @@
-# Crate — Universal Download Manager
+# Crate — A link. A file. Done.
 
-Crate is a self-hosted download queue with a fast web interface. Paste one link or a hundred, let Crate choose the right engine, and keep the results organized in category folders.
+Paste a public media link, choose **MP4 video** or **MP3 audio**, and save the converted file. The hosted edition is a small shared tool for lessons, presentations, and offline viewing. It runs on one Render Free Python service; your home server can stay off.
 
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Burger-boi-bozo/crate)
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Burger-boi-bozo/crate)
 
-The button deploys Crate directly to **Cloudflare Workers + Containers** and automatically provisions R2 persistence. Cloudflare Containers require the Workers Paid plan. During setup, choose the login username and password Cloudflare prompts you for; everything else is created automatically.
+The button loads `render.yaml`, creates the free service, generates its access code, and registers `down.dpifiles.org` as its custom domain. Account sign-in and DNS configuration are still required. The site owner can view or replace `CRATE_ACCESS_CODE` in Render's Environment settings and share it with the teacher.
 
-> Cloudflare mode is ideal when you want Crate hosted entirely on Cloudflare. For very large downloads, private trackers, or sites that block data-center IPs, the Docker/Proxmox deployment remains the more flexible option.
+**Keep the hosting cost at $0:** use the Free instance in a Hobby workspace **without a payment method**. Render can charge bandwidth and build overages when a payment method is present; without one, it suspends free services/builds at the limit. The app's limits reduce usage but are not a billing guarantee. See [Render's free-service limits](https://render.com/docs/free).
+
+## Hosted converter
+
+- Public media links handled by yt-dlp, with FFmpeg for MP4 remuxing/audio encoding and MP3 conversion.
+- MP4 up to 720p when the source offers compatible H.264 video; MP3 at 128 kbps.
+- One conversion at a time, five queued/active jobs globally, two per browser.
+- Clips up to 10 minutes and output files up to 50 MB; ten submissions per rolling day while the process runs.
+- A shared access code, separate browser sessions, private download URLs, cancellation, and video/audio filters.
+- Up to 50 recent history entries stored in the current browser. Clear history deletes completed server files as well.
+- Files expire after one hour, or sooner if Render sleeps/restarts. Each file allows three download requests.
+- No R2, paid database, persistent disk, Redis, cron job, or always-on home computer.
+
+YouTube and other sites can block cloud-server downloads, require sign-in, or stop working when they change. This app does not bypass those restrictions, and it cannot guarantee every link. Playlists, live streams, private and protected media are excluded. Save files to your device when they are ready.
+
+See **[free deployment and domain setup](docs/RENDER_FREE.md)** and **[the ten hosting alternatives reviewed](docs/HOSTING_OPTIONS.md)**.
+
+### Run the converter locally
+
+Use Python 3.12+, FFmpeg (including ffprobe), and Node.js 22+.
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-converter.txt
+export CRATE_ACCESS_CODE='choose-a-private-code'
+export CRATE_SECURE_COOKIE=false  # local HTTP only; keep true for hosted HTTPS
+python -m app.serve
+```
+
+Open `http://localhost:8080`. The queue and media are temporary. `CRATE_DATA_DIR` defaults to `./converter-data`; `CRATE_SESSION_SECRET` should be a stable secret on a hosted service. Run a single Uvicorn worker because the queue is held in that process.
+
+### Converter API
+
+Mutating requests require `X-Crate-Request: 1`; browser requests must have the same origin. Sign in first and keep the returned HTTP-only session cookie.
+
+- `POST /api/session` with `{"code":"your-access-code"}`
+- `GET /api/session` — sign-in status and limits
+- `POST /api/jobs` with `{"url":"https://…","format":"mp4"}`
+- `GET /api/jobs` — only the current browser's conversions
+- `POST /api/jobs/{id}/cancel`
+- `GET /api/jobs/{id}/file` — download the completed file
+- `DELETE /api/jobs/{id}` — cancel/remove the job and its file
+- `DELETE /api/session` — sign out
+- `GET /api/health` — runtime readiness
+
+## Original self-hosted download manager
+
+The Docker edition below retains the original multi-tool manager for users with their own active server. It is a separate entry point (`app.main`) from the hosted converter (`app.converter`). The existing Cloudflare Containers configuration is a **paid legacy deployment option**, not the free Render path.
 
 ## What it supports
 
@@ -55,7 +103,7 @@ docker compose up -d
 
 Cloudflare hosts the public connection, while the downloader itself remains on your Docker/Proxmox machine where it has persistent storage and access to aria2, yt-dlp, and FFmpeg.
 
-The button at the top is a separate, fully Cloudflare-hosted option. It runs the same FastAPI application inside a Cloudflare Container, keeps queue state in an R2-backed SQLite snapshot, and moves completed files into R2.
+The legacy `wrangler.jsonc` and `src/index.ts` configure Cloudflare Containers with R2. They require paid Cloudflare services and are not used by the Render deploy button.
 
 Files are stored in `./downloads` by default and queue/history data lives in `./data`. Change `DOWNLOAD_PATH` to an absolute host path to use a larger drive:
 

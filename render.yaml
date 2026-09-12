@@ -1,0 +1,27 @@
+# One free Python web service. No disks, R2, database, cron, or paid workers.
+services:
+  - type: web
+    name: crate-down
+    runtime: python
+    plan: free
+    region: ohio
+    branch: main
+    buildCommand: pip install -r requirements-converter.txt && python scripts/check_runtime.py
+    startCommand: python -m app.serve
+    healthCheckPath: /api/health
+    autoDeployTrigger: checksPass
+    domains:
+      - down.dpifiles.org
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: CRATE_ACCESS_CODE
+        generateValue: true
+      - key: CRATE_SESSION_SECRET
+        generateValue: true
+      - key: CRATE_SECURE_COOKIE
+        value: "true"
+      - key: CRATE_DATA_DIR
+        value: /tmp/crate-converter

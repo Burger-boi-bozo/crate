@@ -4,6 +4,10 @@ deploy/.env
 node_modules/
 .wrangler/
 .venv/
+.venv-*/
+.local-tools/
+converter-data/
+test-results/
 __pycache__/
 .pytest_cache/
 *.py[cod]
