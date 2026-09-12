@@ -4,6 +4,7 @@ from pathlib import Path
 os.environ["UDM_DATA_DIR"] = "/tmp/crate-test-data"
 os.environ["UDM_DOWNLOAD_DIR"] = "/tmp/crate-test-downloads"
 os.environ["UDM_POLL_INTERVAL"] = "10"
+os.environ["UDM_INTERNAL_TOKEN"] = "test-internal-token"
 
 from fastapi.testclient import TestClient
 
@@ -45,3 +46,29 @@ def test_rejects_unsupported_scheme():
     with TestClient(app) as client:
         response = client.post("/api/downloads", json={"url": "file:///etc/passwd"})
         assert response.status_code == 422
+
+
+def test_internal_database_snapshot_is_guarded_and_restorable():
+    with TestClient(app) as client:
+        hidden = client.get("/api/internal/state")
+        assert hidden.status_code == 404
+
+        headers = {"x-crate-internal": "test-internal-token"}
+        snapshot = client.get("/api/internal/state", headers=headers)
+        assert snapshot.status_code == 200
+        assert snapshot.content.startswith(b"SQLite format 3\x00")
+
+        restored = client.put(
+            "/api/internal/state",
+            content=snapshot.content,
+            headers={**headers, "content-type": "application/vnd.sqlite3"},
+        )
+        assert restored.status_code == 200
+        assert restored.json() == {"ok": True}
+
+        invalid = client.put(
+            "/api/internal/state",
+            content=b"not a database",
+            headers={**headers, "content-type": "application/vnd.sqlite3"},
+        )
+        assert invalid.status_code == 400

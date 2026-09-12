@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "crate-download-manager",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-09-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "containers": [
+    {
+      "class_name": "CrateContainer",
+      "image": "./Dockerfile",
+      "max_instances": 1
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "CRATE_CONTAINER",
+        "class_name": "CrateContainer"
+      }
+    ]
+  },
+  "r2_buckets": [
+    {
+      "binding": "CRATE_STORAGE",
+      "bucket_name": "crate-download-manager-storage"
+    }
+  ],
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["CrateContainer"]
+    }
+  ]
+}
+

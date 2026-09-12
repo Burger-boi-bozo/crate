@@ -1,0 +1,31 @@
+{
+  "name": "crate-download-manager",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cloudflare/containers": "^0.3.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260911.1",
+    "typescript": "^5.9.2",
+    "wrangler": "^4.131.1"
+  },
+  "cloudflare": {
+    "bindings": {
+      "UDM_USERNAME": {
+        "description": "Choose the username used to sign in to Crate."
+      },
+      "UDM_PASSWORD": {
+        "description": "Choose a strong password used to sign in to Crate."
+      },
+      "CRATE_STORAGE": {
+        "description": "R2 stores download history snapshots and completed files across Container restarts."
+      }
+    }
+  }
+}

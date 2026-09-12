@@ -2,6 +2,12 @@
 
 Crate is a self-hosted download queue with a fast web interface. Paste one link or a hundred, let Crate choose the right engine, and keep the results organized in category folders.
 
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Burger-boi-bozo/crate)
+
+The button deploys Crate directly to **Cloudflare Workers + Containers** and automatically provisions R2 persistence. Cloudflare Containers require the Workers Paid plan. During setup, choose the login username and password Cloudflare prompts you for; everything else is created automatically.
+
+> Cloudflare mode is ideal when you want Crate hosted entirely on Cloudflare. For very large downloads, private trackers, or sites that block data-center IPs, the Docker/Proxmox deployment remains the more flexible option.
+
 ## What it supports
 
 - Direct HTTP/HTTPS/FTP files, torrents, and magnet links with **aria2**
@@ -48,6 +54,8 @@ docker compose up -d
 ```
 
 Cloudflare hosts the public connection, while the downloader itself remains on your Docker/Proxmox machine where it has persistent storage and access to aria2, yt-dlp, and FFmpeg.
+
+The button at the top is a separate, fully Cloudflare-hosted option. It runs the same FastAPI application inside a Cloudflare Container, keeps queue state in an R2-backed SQLite snapshot, and moves completed files into R2.
 
 Files are stored in `./downloads` by default and queue/history data lives in `./data`. Change `DOWNLOAD_PATH` to an absolute host path to use a larger drive:
 

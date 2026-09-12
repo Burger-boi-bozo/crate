@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import sqlite3
+import tempfile
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -84,3 +85,37 @@ class Database:
         with self._connect() as conn:
             return [dict(row) for row in conn.execute(sql, params).fetchall()]
 
+    async def export_bytes(self) -> bytes:
+        """Create a consistent SQLite snapshot for remote persistence."""
+        async with self._lock:
+            return await asyncio.to_thread(self._export_bytes_sync)
+
+    def _export_bytes_sync(self) -> bytes:
+        with tempfile.NamedTemporaryFile(suffix=".db") as temporary:
+            with self._connect() as source, sqlite3.connect(temporary.name) as target:
+                source.backup(target)
+            return Path(temporary.name).read_bytes()
+
+    async def import_bytes(self, content: bytes) -> None:
+        """Restore a validated snapshot without exposing filesystem paths."""
+        async with self._lock:
+            await asyncio.to_thread(self._import_bytes_sync, content)
+
+    def _import_bytes_sync(self, content: bytes) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(suffix=".db") as temporary:
+            temporary.write(content)
+            temporary.flush()
+            try:
+                with sqlite3.connect(temporary.name) as source:
+                    check = source.execute("PRAGMA integrity_check").fetchone()
+                    if not check or check[0] != "ok":
+                        raise ValueError("Invalid SQLite snapshot")
+                    with self._connect() as target:
+                        source.backup(target)
+                        target.execute(
+                            "UPDATE downloads SET status='queued', error='Recovered after restart' "
+                            "WHERE status IN ('downloading', 'processing')"
+                        )
+            except sqlite3.DatabaseError as error:
+                raise ValueError("Invalid SQLite snapshot") from error

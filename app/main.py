@@ -3,13 +3,14 @@ from __future__ import annotations
 import hmac
 import json
 import mimetypes
+import os
 import shutil
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, status
+from fastapi import Body, Depends, FastAPI, Header, HTTPException, Query, Request, Response, status
 from fastapi.responses import FileResponse
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
@@ -92,6 +93,12 @@ def public_row(row: dict) -> dict:
         except (ValueError, OSError):
             row["relative_path"] = None
     return row
+
+
+def require_internal(token: str | None) -> None:
+    expected = os.getenv("UDM_INTERNAL_TOKEN", "")
+    if not expected or not token or not hmac.compare_digest(token, expected):
+        raise HTTPException(404, "Not found")
 
 
 async def insert_download(payload: CreateDownload) -> dict:
@@ -256,6 +263,27 @@ async def get_file(job_id: str, _: None = Depends(require_auth)):
 @app.get("/api/detect")
 async def detect(url: str, _: None = Depends(require_auth)):
     return {"tool": detect_tool(url)}
+
+
+@app.get("/api/internal/state", include_in_schema=False)
+async def export_state(x_crate_internal: str | None = Header(default=None)):
+    require_internal(x_crate_internal)
+    return Response(await database.export_bytes(), media_type="application/vnd.sqlite3")
+
+
+@app.put("/api/internal/state", include_in_schema=False)
+async def import_state(
+    content: bytes = Body(media_type="application/vnd.sqlite3"),
+    x_crate_internal: str | None = Header(default=None),
+):
+    require_internal(x_crate_internal)
+    if len(content) > 64 * 1024 * 1024:
+        raise HTTPException(413, "State snapshot is too large")
+    try:
+        await database.import_bytes(content)
+    except (ValueError, OSError):
+        raise HTTPException(400, "Invalid state snapshot")
+    return {"ok": True}
 
 
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")

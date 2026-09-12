@@ -1,12 +1,20 @@
 # GitHub + Cloudflare deployment
 
+## One-click: run entirely on Cloudflare
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Burger-boi-bozo/crate)
+
+This option deploys the Worker, Durable Object, Container, and R2 bucket from the repository. It requires the Cloudflare Workers Paid plan. Cloudflare will ask you to choose a Crate username and password during setup.
+
+The rest of this guide covers the alternative Proxmox + Cloudflare Tunnel architecture.
+
 This setup uses each service for what it is good at:
 
 - **GitHub** stores the source and automatically builds a Linux container image.
 - **Your Proxmox/Docker server** runs Crate and stores the downloaded files.
 - **Cloudflare Tunnel** publishes the web UI without port forwarding or exposing the server's IP.
 
-Cloudflare Pages and Workers cannot run Crate directly because they do not provide a persistent download filesystem or system binaries such as aria2 and FFmpeg.
+Cloudflare Pages and standard Worker isolates cannot run Crate by themselves because they do not provide system binaries such as aria2 and FFmpeg. The one-click option solves that by using a Cloudflare Container behind the Worker.
 
 ## 1. Create and push the GitHub repository
 
@@ -84,4 +92,3 @@ Your data survives container replacements because the database and downloads are
 ## Optional: Cloudflare Access
 
 For another authentication layer, create a Cloudflare Access self-hosted application for your hostname and allow only your email address. Keep Crate's own password enabled as defense in depth.
-
