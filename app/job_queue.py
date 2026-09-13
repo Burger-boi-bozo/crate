@@ -1,4 +1,4 @@
-"""Persistent queue, controls, events, and cleanup for Crate jobs."""
+"""Persistent queue, controls, events, live updates, and cleanup for Crate jobs."""
 from __future__ import annotations
 
 import asyncio
@@ -7,7 +7,7 @@ import secrets
 import shutil
 import signal
 import time
-from collections import deque
+from collections import defaultdict, deque
 
 from fastapi import HTTPException
 
@@ -24,6 +24,7 @@ class Queue:
         self.daily: deque[float] = deque()
         self.processes: dict[str, asyncio.subprocess.Process] = {}
         self.tasks: list[asyncio.Task] = []
+        self.subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
         self.started_at = time.time()
 
     async def start(self):
@@ -45,8 +46,34 @@ class Queue:
     def save(self):
         self.store.replace_jobs(self.jobs)
 
+    def subscribe(self, owner: str):
+        channel: asyncio.Queue = asyncio.Queue(maxsize=64)
+        self.subscribers[owner].add(channel)
+        return channel
+
+    def unsubscribe(self, owner: str, channel: asyncio.Queue):
+        self.subscribers[owner].discard(channel)
+        if not self.subscribers[owner]:
+            self.subscribers.pop(owner, None)
+
+    def notify(self, job, kind="job", event=None):
+        packet = {"type": kind, "job": self.public(job)}
+        if event is not None:
+            packet["event"] = event
+        for channel in tuple(self.subscribers.get(job.get("owner", ""), ())):
+            if channel.full():
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    channel.get_nowait()
+            with contextlib.suppress(asyncio.QueueFull):
+                channel.put_nowait(packet)
+
     def event(self, job, kind: str, message: str, payload: dict | None = None):
-        return self.store.add_event(job, kind, message, payload)
+        saved = self.store.add_event(job, kind, message, payload)
+        self.notify(job, "job", saved)
+        return saved
+
+    def progress_changed(self, job):
+        self.notify(job, "progress")
 
     def events(self, owner: str, job_id: str | None = None, limit: int = 100):
         return self.store.events(owner, job_id, limit)
@@ -95,8 +122,9 @@ class Queue:
             raise HTTPException(429, "Today's conversion allowance is used. Please try again tomorrow.")
         if self.config.max_queue and sum(job.get("status") in ACTIVE for job in self.jobs.values()) >= self.config.max_queue:
             raise HTTPException(429, "The queue is full. Please try again in a few minutes.")
-        if self.config.max_work_bytes and shutil.disk_usage(self.config.data_dir).free < self.config.max_work_bytes * 2:
-            raise HTTPException(503, "Storage is busy. Please try again after older files expire.")
+        reserve = max(self.config.min_free_bytes, self.config.max_work_bytes * 2)
+        if reserve and shutil.disk_usage(self.config.data_dir).free < reserve:
+            raise HTTPException(503, "Storage reserve is low. Remove older downloads before starting another job.")
         duplicate = next((job for job in self.jobs.values()
                           if job.get("owner") == owner and job.get("url") == body.url
                           and job.get("format") == body.format and job.get("quality") == body.quality
