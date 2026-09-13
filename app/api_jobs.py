@@ -1,26 +1,13 @@
-"""Job and status routes for Crate."""
-import shutil
-import time
+"""Job routes for Crate."""
 from pathlib import Path
 
 from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 
 from app.models import ACTIVE, Submission
-from app.version import version_payload
 
 
 def install(app, queue, config, owner):
-    @app.get("/api/status")
-    async def status(request: Request):
-        owner(request)
-        usage = shutil.disk_usage(config.data_dir)
-        states = ("queued", "downloading", "converting", "paused", "ready", "failed")
-        counts = {state: sum(job.get("status") == state for job in queue.jobs.values()) for state in states}
-        return {"status": "ok", "uptime_seconds": max(0, int(time.time() - queue.started_at)),
-                "workers": config.workers, "disk_free": usage.free, "disk_total": usage.total,
-                "active": counts["downloading"] + counts["converting"], "counts": counts, **version_payload()}
-
     @app.get("/api/jobs")
     async def jobs(request: Request):
         identity = owner(request)
