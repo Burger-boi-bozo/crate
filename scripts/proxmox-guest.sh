@@ -63,6 +63,29 @@ WantedBy=multi-user.target
 UNIT
 systemctl daemon-reload
 systemctl enable --now crate
+install -m 0755 /opt/crate/scripts/proxmox-auto-update.py /usr/local/sbin/crate-auto-update.py
+cat > /etc/systemd/system/crate-auto-update.service <<'UNIT'
+[Unit]
+Description=Update Crate after GitHub Actions passes
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/sbin/crate-auto-update.py
+UNIT
+cat > /etc/systemd/system/crate-auto-update.timer <<'UNIT'
+[Unit]
+Description=Check GitHub for tested Crate updates
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=60
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now crate-auto-update.timer
 curl --fail --silent --show-error --location --retry 3 \
   https://github.com/cloudflare/cloudflared/releases/download/2026.9.1/cloudflared-linux-amd64 \
   --output /usr/local/bin/cloudflared

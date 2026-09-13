@@ -1,5 +1,7 @@
 #!/bin/bash
 set -euo pipefail
+exec 9>/run/lock/crate-update.lock
+flock -n 9 || { echo "Another Crate update is already running."; exit 0; }
 ref="${1:?Missing revision}"
 [[ "$ref" =~ ^[a-f0-9]{40}$ ]] || exit 1
 cd /opt/crate
@@ -44,4 +46,27 @@ for attempt in range(30):
             raise
         time.sleep(1)
 PY
+install -m 0755 scripts/proxmox-auto-update.py /usr/local/sbin/crate-auto-update.py
+cat > /etc/systemd/system/crate-auto-update.service <<'UNIT'
+[Unit]
+Description=Update Crate after GitHub Actions passes
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/python3 /usr/local/sbin/crate-auto-update.py
+UNIT
+cat > /etc/systemd/system/crate-auto-update.timer <<'UNIT'
+[Unit]
+Description=Check GitHub for tested Crate updates
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+RandomizedDelaySec=60
+Persistent=true
+[Install]
+WantedBy=timers.target
+UNIT
+systemctl daemon-reload
+systemctl enable --now crate-auto-update.timer
 trap - ERR

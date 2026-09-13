@@ -25,7 +25,7 @@ curl -fL https://raw.githubusercontent.com/Burger-boi-bozo/crate/main/scripts/pr
 python3 /root/crate-update.py
 ```
 
-The updater discovers the existing installer-created VM, verifies its SSH host key through the guest agent, updates one pinned revision and verifies health. It preserves the existing tunnel, domain and environment. If you installed more than one Crate VM, use `--vmid NUMBER`. Finish active downloads before the first update from the old nonpersistent edition.
+The updater discovers the existing installer-created VM, verifies its SSH host key through the guest agent, updates one pinned revision and verifies health. It preserves the existing tunnel, domain and environment. It also enables a five-minute systemd timer: future pushes to `main` deploy only after GitHub Actions passes, with automatic rollback when the app health check fails. If you installed more than one Crate VM, use `--vmid NUMBER`. Finish active downloads before the first update from the old nonpersistent edition.
 
 ### Run locally
 
