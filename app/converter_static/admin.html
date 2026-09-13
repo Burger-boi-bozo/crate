@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Crate — Admin</title>
+  <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/styles.css?v=4">
+  <link rel="stylesheet" href="/assets/admin.css?v=4">
+  <script src="/assets/admin.js?v=4" defer></script>
+</head>
+<body>
+  <div class="shell admin-shell">
+    <header class="topbar"><a class="brand" href="/"><span class="brand-icon">↧</span> crate<span class="brand-dot">.</span></a><span class="host-label">ADMIN</span></header>
+    <main>
+      <section id="admin-login" class="admin-login">
+        <span class="eyebrow"><span class="tiny-dot"></span> OPERATOR ACCESS</span>
+        <h1>Admin panel.</h1>
+        <p>Server telemetry and queue controls stay separate from the public downloader.</p>
+        <form id="admin-login-form"><label for="admin-password">Admin password</label><input id="admin-password" type="password" autocomplete="current-password" required><button class="primary" type="submit">Sign in</button></form>
+        <p id="admin-login-error" class="error" role="alert" hidden></p>
+      </section>
+      <section id="admin-dashboard" hidden>
+        <div class="admin-heading"><div><span class="eyebrow"><span class="tiny-dot"></span> SERVER OVERVIEW</span><h1>Crate control room.</h1></div><button id="admin-logout" class="text-button">Sign out</button></div>
+        <div id="admin-cards" class="admin-cards"></div>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">01 / SOURCES</span><h2>Provider health</h2></div><span id="admin-updated" class="muted"></span></div><div id="provider-list" class="provider-list"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">02 / QUEUE</span><h2>Recent jobs</h2></div><select id="job-filter"><option value="all">All jobs</option><option value="active">Active</option><option value="failed">Failed</option><option value="ready">Ready</option></select></div><div id="admin-jobs" class="admin-jobs"></div></section>
+      </section>
+    </main>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="admin-version" class="footer-version">v4</span></div><span>Operator view · private telemetry</span><a href="/">Public app ↗</a></footer>
+  </div>
+</body>
+</html>

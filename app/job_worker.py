@@ -13,6 +13,7 @@ from app.runner_process import spawn
 
 async def read_events(queue, job, process, started):
     last_event = time.monotonic()
+    last_saved = last_event
     result = None
     readline = asyncio.create_task(process.stdout.readline())
     try:
@@ -20,8 +21,6 @@ async def read_events(queue, job, process, started):
             done, _ = await asyncio.wait({readline}, timeout=1)
             now = time.monotonic()
             if job.get("status") == "paused":
-                # Paused work is intentionally idle. Reset the stall baseline so
-                # a long pause cannot immediately fail when the process resumes.
                 last_event = now
             if queue.config.timeout and now - started > queue.config.timeout:
                 raise JobError("This conversion took too long. Try a shorter clip.", "job_timeout")
@@ -44,7 +43,14 @@ async def read_events(queue, job, process, started):
                 continue
             kind = event.get("kind")
             if kind == "progress" and job.get("status") != "paused":
+                previous_stage = job.get("stage")
                 apply_progress(job, event)
+                queue.progress_changed(job)
+                if job.get("stage") != previous_stage:
+                    queue.event(job, "stage", f"Stage changed to {job['stage']}", {"stage": job["stage"]})
+                if last_event - last_saved >= 5:
+                    queue.save()
+                    last_saved = last_event
             elif kind == "result":
                 result = event
             elif kind == "error":
@@ -69,6 +75,7 @@ def finish_job(queue, job, directory, result):
                filename=result["filename"], path=str(output), size=output.stat().st_size,
                width=result.get("width"), height=result.get("height"), finished_at=time.time(),
                expires_at=time.time() + queue.config.ttl if queue.config.ttl else None)
+    queue.event(job, "ready", "File is ready", {"size": job["size"], "filename": job["filename"]})
     for child in directory.iterdir():
         if child == output:
             continue
@@ -85,6 +92,7 @@ async def run_job(queue, job):
     job.update(status="downloading", stage="downloading", error=None, error_code=None,
                diagnostic=None, progress=0, downloaded_bytes=0, total_bytes=0,
                speed=None, eta=None, conversion_progress=None)
+    queue.event(job, "started", "Worker started job")
     queue.save()
     process = None
     try:
@@ -106,6 +114,7 @@ async def run_job(queue, job):
                        speed=None, eta=None, finished_at=time.time())
             if not job.get("diagnostic"):
                 job["diagnostic"] = f"{type(exc).__name__}: {message}"[:400]
+            queue.event(job, "failed", message[:160], {"error_code": code})
     finally:
         if process:
             await queue.kill(process)

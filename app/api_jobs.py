@@ -1,31 +1,51 @@
-"""Job and status routes for Crate."""
-import shutil
-import time
+"""Job routes for Crate."""
+import asyncio
+import json
 from pathlib import Path
 
 from fastapi import HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 
 from app.models import ACTIVE, Submission
-from app.version import version_payload
 
 
 def install(app, queue, config, owner):
-    @app.get("/api/status")
-    async def status(request: Request):
-        owner(request)
-        usage = shutil.disk_usage(config.data_dir)
-        states = ("queued", "downloading", "converting", "paused", "ready", "failed")
-        counts = {state: sum(job.get("status") == state for job in queue.jobs.values()) for state in states}
-        return {"status": "ok", "uptime_seconds": max(0, int(time.time() - queue.started_at)),
-                "workers": config.workers, "disk_free": usage.free, "disk_total": usage.total,
-                "active": counts["downloading"] + counts["converting"], "counts": counts, **version_payload()}
-
     @app.get("/api/jobs")
     async def jobs(request: Request):
         identity = owner(request)
         queue.expire()
         return [queue.public(job) for job in queue.jobs.values() if job.get("owner") == identity]
+
+    @app.get("/api/events")
+    async def events(request: Request):
+        identity = owner(request)
+        channel = queue.subscribe(identity)
+
+        async def stream():
+            try:
+                snapshot = [queue.public(job) for job in queue.jobs.values() if job.get("owner") == identity]
+                yield "retry: 3000\n"
+                yield "data: " + json.dumps({"type": "sync", "jobs": snapshot}, separators=(",", ":")) + "\n\n"
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    try:
+                        packet = await asyncio.wait_for(channel.get(), timeout=15)
+                    except asyncio.TimeoutError:
+                        yield ": keepalive\n\n"
+                        continue
+                    yield "data: " + json.dumps(packet, separators=(",", ":")) + "\n\n"
+            finally:
+                queue.unsubscribe(identity, channel)
+
+        return StreamingResponse(stream(), media_type="text/event-stream",
+                                 headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"})
+
+    @app.get("/api/jobs/{job_id}/events")
+    async def job_events(job_id: str, request: Request):
+        identity = owner(request)
+        queue.owned(job_id, identity)
+        return queue.events(identity, job_id, 100)
 
     @app.post("/api/jobs", status_code=202)
     async def submit(body: Submission, request: Request):
@@ -56,8 +76,7 @@ def install(app, queue, config, owner):
     async def delete(job_id: str, request: Request):
         job = queue.owned(job_id, owner(request))
         await queue.cancel(job)
-        queue.jobs.pop(job_id, None)
-        queue.save()
+        queue.delete(job_id)
         return PlainTextResponse(status_code=204)
 
     @app.api_route("/api/jobs/{job_id}/file", methods=["GET", "HEAD"])

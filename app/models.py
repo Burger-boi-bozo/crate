@@ -26,9 +26,12 @@ def env_int(name: str, default: int, minimum: int = 0, maximum: int | None = Non
 class Config:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("CRATE_DATA_DIR", "converter-data")).resolve())
     secret: str = field(default_factory=lambda: os.getenv("CRATE_SESSION_SECRET", "") or secrets.token_urlsafe(48))
+    admin_password: str = field(default_factory=lambda: os.getenv("CRATE_ADMIN_PASSWORD", ""))
     secure_cookie: bool = field(default_factory=lambda: os.getenv("CRATE_SECURE_COOKIE", "true") != "false")
     workers: int = field(default_factory=lambda: env_int("CRATE_WORKERS", 2, 1, 8))
     stall_timeout: int = field(default_factory=lambda: env_int("CRATE_STALL_TIMEOUT", 300, 30, 3600))
+    preview_timeout: int = field(default_factory=lambda: env_int("CRATE_PREVIEW_TIMEOUT", 20, 5, 60))
+    min_free_bytes: int = field(default_factory=lambda: env_int("CRATE_MIN_FREE_BYTES", 1024 ** 3, 0))
     max_bytes: int = 0
     max_work_bytes: int = 0
     max_duration: int = 0

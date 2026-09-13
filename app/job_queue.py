@@ -1,43 +1,35 @@
-"""Persistent queue, controls, and cleanup for Crate jobs."""
+"""Persistent queue, controls, events, live updates, and cleanup for Crate jobs."""
 from __future__ import annotations
 
 import asyncio
 import contextlib
-import json
-import os
 import secrets
 import shutil
 import signal
 import time
-from collections import deque
+from collections import defaultdict, deque
 
 from fastapi import HTTPException
 
+from app.job_store import JobStore
 from app.models import ACTIVE, RUNNING, Config, Submission
 
 
 class Queue:
     def __init__(self, config: Config):
         self.config = config
+        self.store = JobStore(config.data_dir)
         self.jobs: dict[str, dict] = {}
         self.pending: asyncio.Queue[str] = asyncio.Queue()
         self.daily: deque[float] = deque()
         self.processes: dict[str, asyncio.subprocess.Process] = {}
         self.tasks: list[asyncio.Task] = []
+        self.subscribers: dict[str, set[asyncio.Queue]] = defaultdict(set)
         self.started_at = time.time()
 
-    @property
-    def state_path(self):
-        return self.config.data_dir / "jobs.json"
-
     async def start(self):
-        self.config.data_dir.mkdir(parents=True, exist_ok=True)
-        if self.state_path.is_file():
-            try:
-                loaded = json.loads(self.state_path.read_text())
-                self.jobs = loaded if isinstance(loaded, dict) else {}
-            except (OSError, ValueError, TypeError):
-                self.jobs = {}
+        self.store.initialize()
+        self.jobs = self.store.load_jobs()
         for job in self.jobs.values():
             if job.get("status") in ACTIVE:
                 shutil.rmtree(self.folder(job["id"]), ignore_errors=True)
@@ -45,26 +37,50 @@ class Queue:
                            total_bytes=0, speed=None, eta=None, conversion_progress=None,
                            paused_from=None, error=None, error_code=None, diagnostic=None)
                 self.pending.put_nowait(job["id"])
+                self.event(job, "requeued", "Requeued after server restart")
         self.expire()
         self.save()
         self.tasks = [asyncio.create_task(self.work(), name=f"crate-worker-{n + 1}") for n in range(self.config.workers)]
         self.tasks.append(asyncio.create_task(self.clean(), name="crate-cleaner"))
 
     def save(self):
-        self.config.data_dir.mkdir(parents=True, exist_ok=True)
-        temp = self.config.data_dir / "jobs.json.tmp"
-        with temp.open("w") as handle:
-            json.dump(self.jobs, handle, separators=(",", ":"))
-            handle.flush()
-            os.fsync(handle.fileno())
-        temp.chmod(0o600)
-        temp.replace(self.state_path)
-        with contextlib.suppress(OSError):
-            fd = os.open(self.config.data_dir, os.O_RDONLY)
-            try:
-                os.fsync(fd)
-            finally:
-                os.close(fd)
+        self.store.replace_jobs(self.jobs)
+
+    def subscribe(self, owner: str):
+        channel: asyncio.Queue = asyncio.Queue(maxsize=64)
+        self.subscribers[owner].add(channel)
+        return channel
+
+    def unsubscribe(self, owner: str, channel: asyncio.Queue):
+        self.subscribers[owner].discard(channel)
+        if not self.subscribers[owner]:
+            self.subscribers.pop(owner, None)
+
+    def notify(self, job, kind="job", event=None):
+        packet = {"type": kind, "job": self.public(job)}
+        if event is not None:
+            packet["event"] = event
+        for channel in tuple(self.subscribers.get(job.get("owner", ""), ())):
+            if channel.full():
+                with contextlib.suppress(asyncio.QueueEmpty):
+                    channel.get_nowait()
+            with contextlib.suppress(asyncio.QueueFull):
+                channel.put_nowait(packet)
+
+    def event(self, job, kind: str, message: str, payload: dict | None = None):
+        saved = self.store.add_event(job, kind, message, payload)
+        self.notify(job, "job", saved)
+        return saved
+
+    def progress_changed(self, job):
+        self.notify(job, "progress")
+
+    def events(self, owner: str, job_id: str | None = None, limit: int = 100):
+        return self.store.events(owner, job_id, limit)
+
+    def delete(self, job_id: str):
+        self.jobs.pop(job_id, None)
+        self.store.delete_job(job_id)
 
     async def stop(self):
         for task in self.tasks:
@@ -78,7 +94,7 @@ class Queue:
     async def kill(process):
         if process.returncode is None:
             with contextlib.suppress(ProcessLookupError):
-                os.killpg(process.pid, signal.SIGKILL)
+                os_killpg(process.pid, signal.SIGKILL)
         await process.wait()
 
     def folder(self, job_id: str):
@@ -106,8 +122,15 @@ class Queue:
             raise HTTPException(429, "Today's conversion allowance is used. Please try again tomorrow.")
         if self.config.max_queue and sum(job.get("status") in ACTIVE for job in self.jobs.values()) >= self.config.max_queue:
             raise HTTPException(429, "The queue is full. Please try again in a few minutes.")
-        if self.config.max_work_bytes and shutil.disk_usage(self.config.data_dir).free < self.config.max_work_bytes * 2:
-            raise HTTPException(503, "Storage is busy. Please try again after older files expire.")
+        reserve = max(self.config.min_free_bytes, self.config.max_work_bytes * 2)
+        if reserve and shutil.disk_usage(self.config.data_dir).free < reserve:
+            raise HTTPException(503, "Storage reserve is low. Remove older downloads before starting another job.")
+        duplicate = next((job for job in self.jobs.values()
+                          if job.get("owner") == owner and job.get("url") == body.url
+                          and job.get("format") == body.format and job.get("quality") == body.quality
+                          and job.get("status") in ACTIVE), None)
+        if duplicate:
+            return duplicate
         job_id = secrets.token_hex(16)
         job = dict(id=job_id, owner=owner, url=body.url, format=body.format, quality=body.quality,
                    title=body.url, status="queued", stage="queued", progress=0,
@@ -118,6 +141,7 @@ class Queue:
         self.jobs[job_id] = job
         self.daily.append(now)
         self.pending.put_nowait(job_id)
+        self.event(job, "queued", "Added to queue")
         self.save()
         return job
 
@@ -137,6 +161,7 @@ class Queue:
                 await self.kill(process)
         shutil.rmtree(self.folder(job["id"]), ignore_errors=True)
         job["path"] = None
+        self.event(job, "cancelled", "Job cancelled")
         self.save()
         return job
 
@@ -150,10 +175,11 @@ class Queue:
             process = self.processes.get(job["id"])
             if not process or process.returncode is not None:
                 raise HTTPException(409, "This job is no longer running.")
-            os.killpg(process.pid, signal.SIGSTOP)
+            os_killpg(process.pid, signal.SIGSTOP)
             job.update(status="paused", stage="paused", paused_from=status, speed=None, eta=None)
         else:
             raise HTTPException(409, "Only queued or running jobs can be paused.")
+        self.event(job, "paused", f"Paused during {status}")
         self.save()
         return job
 
@@ -163,19 +189,22 @@ class Queue:
         previous = job.get("paused_from") or "queued"
         process = self.processes.get(job["id"])
         if process and process.returncode is None:
-            os.killpg(process.pid, signal.SIGCONT)
+            os_killpg(process.pid, signal.SIGCONT)
             status = previous if previous in RUNNING else "downloading"
             job.update(status=status, stage=status, paused_from=None)
         else:
             job.update(status="queued", stage="queued", paused_from=None)
             self.pending.put_nowait(job["id"])
+        self.event(job, "resumed", "Job resumed")
         self.save()
         return job
 
     def retry(self, owner: str, job):
         if job.get("status") in ACTIVE:
             raise HTTPException(409, "Cancel or finish this job before retrying it.")
-        return self.submit(owner, Submission(url=job["url"], format=job["format"], quality=job.get("quality", "best")))
+        retried = self.submit(owner, Submission(url=job["url"], format=job["format"], quality=job.get("quality", "best")))
+        self.event(retried, "retry", f"Retried from {job['id'][:8]}")
+        return retried
 
     async def work(self):
         from app.job_worker import run_job
@@ -192,6 +221,7 @@ class Queue:
         while True:
             await asyncio.sleep(30)
             self.expire()
+            self.store.prune_events(time.time() - 30 * 86400)
             self.save()
 
     def expire(self):
@@ -200,5 +230,11 @@ class Queue:
             if job.get("expires_at") and job["expires_at"] <= now and job.get("status") == "ready":
                 shutil.rmtree(self.folder(job_id), ignore_errors=True)
                 job.update(status="expired", stage="expired", path=None)
+                self.event(job, "expired", "Stored file expired")
             if self.config.ttl and job.get("status") not in ACTIVE and now - job.get("created_at", now) > max(86400, self.config.ttl):
-                self.jobs.pop(job_id)
+                self.delete(job_id)
+
+
+def os_killpg(pid: int, sig: signal.Signals):
+    import os
+    os.killpg(pid, sig)

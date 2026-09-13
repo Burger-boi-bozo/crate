@@ -10,21 +10,17 @@ from app.version import version_payload
 
 def test_version_uses_deployed_sha(monkeypatch):
     monkeypatch.setenv("CRATE_BUILD_SHA", "abcdef1234567890")
-    assert version_payload()["label"] == "v3.0.0 · abcdef123456"
+    assert version_payload()["label"] == "v4.0.0 · abcdef123456"
 
 
-def test_status_reports_disk_workers_and_version(tmp_path, monkeypatch):
+def test_server_metrics_are_not_exposed_on_public_status_route(tmp_path, monkeypatch):
     async def idle(self):
         await asyncio.Event().wait()
     monkeypatch.setattr("app.job_queue.Queue.work", idle)
     app = create_app(Config(data_dir=tmp_path, secret="test", secure_cookie=False, workers=2))
     with TestClient(app, base_url="https://testserver") as client:
         client.get("/api/session")
-        status = client.get("/api/status").json()
-        assert status["status"] == "ok"
-        assert status["workers"] == 2
-        assert status["disk_free"] > 0
-        assert "version" in status and "build" in status
+        assert client.get("/api/status").status_code == 404
 
 
 @pytest.mark.asyncio
