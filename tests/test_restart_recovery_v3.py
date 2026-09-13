@@ -1,5 +1,6 @@
 import asyncio
 import json
+import sqlite3
 
 import pytest
 
@@ -8,7 +9,7 @@ from app.models import Config
 
 
 @pytest.mark.asyncio
-async def test_interrupted_jobs_requeue_and_partial_files_are_removed(tmp_path, monkeypatch):
+async def test_interrupted_jobs_migrate_requeue_and_partial_files_are_removed(tmp_path, monkeypatch):
     async def idle(self):
         await asyncio.Event().wait()
     monkeypatch.setattr(Queue, "work", idle)
@@ -27,13 +28,18 @@ async def test_interrupted_jobs_requeue_and_partial_files_are_removed(tmp_path, 
         assert job["status"] == "queued"
         assert job["progress"] == 0
         assert not folder.exists()
+        assert (tmp_path / "crate.db").is_file()
+        assert (tmp_path / "jobs.json.v3-backup").is_file()
     finally:
         await queue.stop()
 
 
-def test_state_write_is_atomic_and_leaves_no_temp_file(tmp_path):
+def test_state_write_uses_sqlite_wal(tmp_path):
     queue = Queue(Config(data_dir=tmp_path, secret="test", workers=1))
-    queue.jobs["example"] = {"id": "example", "status": "failed", "expires_at": None, "created_at": 1}
+    queue.store.initialize()
+    queue.jobs["example"] = {"id": "example", "owner": "owner", "status": "failed", "expires_at": None, "created_at": 1}
     queue.save()
-    assert json.loads((tmp_path / "jobs.json").read_text())["example"]["status"] == "failed"
+    assert queue.store.load_jobs()["example"]["status"] == "failed"
+    with sqlite3.connect(tmp_path / "crate.db") as db:
+        assert db.execute("PRAGMA journal_mode").fetchone()[0].lower() == "wal"
     assert not (tmp_path / "jobs.json.tmp").exists()
