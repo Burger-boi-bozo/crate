@@ -19,6 +19,10 @@ async def read_events(queue, job, process, started):
         while True:
             done, _ = await asyncio.wait({readline}, timeout=1)
             now = time.monotonic()
+            if job.get("status") == "paused":
+                # Paused work is intentionally idle. Reset the stall baseline so
+                # a long pause cannot immediately fail when the process resumes.
+                last_event = now
             if queue.config.timeout and now - started > queue.config.timeout:
                 raise JobError("This conversion took too long. Try a shorter clip.", "job_timeout")
             if job.get("status") != "paused" and queue.config.stall_timeout and now - last_event > queue.config.stall_timeout:
