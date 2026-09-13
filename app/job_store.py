@@ -14,6 +14,7 @@ class JobStore:
         self.data_dir = data_dir
         self.path = data_dir / "crate.db"
         self.legacy_path = data_dir / "jobs.json"
+        self._initialized = False
 
     def connect(self):
         connection = sqlite3.connect(self.path, timeout=5)
@@ -23,6 +24,8 @@ class JobStore:
         return connection
 
     def initialize(self):
+        if self._initialized:
+            return
         self.data_dir.mkdir(parents=True, exist_ok=True)
         with self.connect() as db:
             db.execute("PRAGMA journal_mode=WAL")
@@ -33,6 +36,7 @@ class JobStore:
             db.execute("CREATE INDEX IF NOT EXISTS events_job_seq ON events(job_id, seq)")
         with contextlib.suppress(OSError):
             self.path.chmod(0o600)
+        self._initialized = True
         self.migrate_legacy_json()
 
     def migrate_legacy_json(self):
@@ -55,6 +59,7 @@ class JobStore:
         return True
 
     def load_jobs(self):
+        self.initialize()
         with self.connect() as db:
             rows = db.execute("SELECT id, payload FROM jobs ORDER BY updated_at").fetchall()
         jobs = {}
@@ -68,6 +73,7 @@ class JobStore:
         return jobs
 
     def replace_jobs(self, jobs: dict[str, dict]):
+        self.initialize()
         now = time.time()
         rows = [(job_id, str(job.get("owner", "")), json.dumps(job, separators=(",", ":")), now) for job_id, job in jobs.items()]
         with self.connect() as db:
@@ -77,21 +83,25 @@ class JobStore:
             db.commit()
 
     def delete_job(self, job_id: str):
+        self.initialize()
         with self.connect() as db:
             db.execute("DELETE FROM jobs WHERE id=?", (job_id,))
             db.execute("DELETE FROM events WHERE job_id=?", (job_id,))
 
     def add_event(self, job: dict, kind: str, message: str, payload: dict | None = None):
+        self.initialize()
         created_at = time.time()
+        owner = str(job.get("owner", ""))
         with self.connect() as db:
             cursor = db.execute("INSERT INTO events(job_id, owner, created_at, kind, message, payload) VALUES(?,?,?,?,?,?)",
-                                (job["id"], job["owner"], created_at, kind, message,
+                                (job["id"], owner, created_at, kind, message,
                                  json.dumps(payload or {}, separators=(",", ":"))))
             seq = cursor.lastrowid
         return {"seq": seq, "job_id": job["id"], "created_at": created_at,
                 "kind": kind, "message": message, "payload": payload or {}}
 
     def events(self, owner: str, job_id: str | None = None, limit: int = 100):
+        self.initialize()
         limit = max(1, min(int(limit), 250))
         query = "SELECT seq, job_id, created_at, kind, message, payload FROM events WHERE owner=?"
         args: list[object] = [owner]
@@ -113,5 +123,6 @@ class JobStore:
         return result
 
     def prune_events(self, before: float):
+        self.initialize()
         with self.connect() as db:
             db.execute("DELETE FROM events WHERE created_at < ?", (before,))
