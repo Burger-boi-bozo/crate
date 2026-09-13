@@ -29,8 +29,9 @@ w.fetch = async (url, options = {}) => {
   return {ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(data))};
 };
 const tick = () => new Promise(resolve => setTimeout(resolve, 15));
-w.eval(readFileSync(path.join(base, 'app.js'), 'utf8'));
-w.eval(readFileSync(path.join(base, 'enhancements.js'), 'utf8'));
+const appSource = readFileSync(path.join(base, 'app.js'), 'utf8');
+const enhancementsSource = readFileSync(path.join(base, 'enhancements.js'), 'utf8');
+w.eval(`${appSource}\n${enhancementsSource}`);
 w.eval(readFileSync(path.join(base, 'version.js'), 'utf8'));
 w.eval(readFileSync(path.join(base, 'status.js'), 'utf8'));
 (async () => {
