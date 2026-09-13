@@ -31,20 +31,25 @@ python3 -m venv /opt/crate/.venv
 /opt/crate/.venv/bin/python /opt/crate/scripts/check_runtime.py
 install -d -m 700 /etc/crate
 crate_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+crate_admin_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
 cat > /etc/crate/environment <<EOF
 PORT=8080
 CRATE_DATA_DIR=/var/lib/crate/media
 CRATE_SECURE_COOKIE=false
 CRATE_HOSTING=proxmox
 CRATE_SESSION_SECRET=$crate_secret
+CRATE_ADMIN_PASSWORD=$crate_admin_password
 CRATE_BUILD_SHA=$CRATE_REF
 CRATE_WORKERS=2
 CRATE_FRAGMENT_CONCURRENCY=4
 CRATE_DOWNLOAD_RETRIES=4
 CRATE_FFMPEG_THREADS=0
 CRATE_STALL_TIMEOUT=300
+CRATE_PREVIEW_TIMEOUT=20
 EOF
 chmod 600 /etc/crate/environment
+printf '%s\n' "$crate_admin_password" > /etc/crate/admin-password
+chmod 600 /etc/crate/admin-password
 cat > /etc/systemd/system/crate.service <<'UNIT'
 [Unit]
 Description=Crate media converter
@@ -111,7 +116,7 @@ def api(path, body=None):
 for _ in range(30):
     try:
         health = api('/api/health')
-        assert health['status'] == 'ok' and health['runtime'] == 'crate-v3' and health['build'] == expected
+        assert health['status'] == 'ok' and health['runtime'] == 'crate-v4' and health['build'] == expected
         break
     except Exception: time.sleep(2)
 else: raise RuntimeError('Crate did not become healthy')
@@ -126,6 +131,6 @@ else: raise RuntimeError('Media smoke test timed out')
 with client.open('http://127.0.0.1:8080/api/jobs/' + job['id'] + '/file', timeout=30) as response:
     content = response.read(2 * 1024 * 1024)
     assert len(content) == job['size'] and b'ftyp' in content[:32]
-print('Crate v3 public-media download verified:', job['width'], 'x', job['height'])
+print('Crate v4 public-media download verified:', job['width'], 'x', job['height'])
 PY
 echo ready > /var/lib/crate/bootstrap-status
