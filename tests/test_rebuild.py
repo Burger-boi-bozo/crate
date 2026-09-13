@@ -27,3 +27,13 @@ async def test_rebuild_recovers_bad_state_file(tmp_path):
         assert queue.jobs == {}
     finally:
         await queue.stop()
+
+
+def test_version_payload_uses_deployed_revision(monkeypatch):
+    monkeypatch.setenv("CRATE_BUILD_SHA", "1234567890abcdef")
+    payload = rebuild.version_payload()
+    assert payload == {
+        "version": "2.0.0",
+        "build": "1234567890ab",
+        "label": "v2.0.0 · 1234567890ab",
+    }
