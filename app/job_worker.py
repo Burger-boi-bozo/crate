@@ -13,6 +13,7 @@ from app.runner_process import spawn
 
 async def read_events(queue, job, process, started):
     last_event = time.monotonic()
+    last_persist = last_event
     result = None
     readline = asyncio.create_task(process.stdout.readline())
     try:
@@ -20,8 +21,6 @@ async def read_events(queue, job, process, started):
             done, _ = await asyncio.wait({readline}, timeout=1)
             now = time.monotonic()
             if job.get("status") == "paused":
-                # Paused work is intentionally idle. Reset the stall baseline so
-                # a long pause cannot immediately fail when the process resumes.
                 last_event = now
             if queue.config.timeout and now - started > queue.config.timeout:
                 raise JobError("This conversion took too long. Try a shorter clip.", "job_timeout")
@@ -44,7 +43,14 @@ async def read_events(queue, job, process, started):
                 continue
             kind = event.get("kind")
             if kind == "progress" and job.get("status") != "paused":
+                previous_stage = job.get("stage")
                 apply_progress(job, event)
+                queue.progress_changed(job)
+                if job.get("stage") != previous_stage:
+                    queue.record(job, "stage", f"Stage changed to {job['stage']}")
+                if last_event - last_persist >= 5:
+                    queue.save()
+                    last_persist = last_event
             elif kind == "result":
                 result = event
             elif kind == "error":
@@ -86,6 +92,7 @@ async def run_job(queue, job):
                diagnostic=None, progress=0, downloaded_bytes=0, total_bytes=0,
                speed=None, eta=None, conversion_progress=None)
     queue.save()
+    queue.record(job, "started", "Worker started the job")
     process = None
     try:
         process = await spawn(job, directory, queue.config)
@@ -96,6 +103,8 @@ async def run_job(queue, job):
         if process.returncode or not result:
             raise JobError("The source could not provide this media. Try another public clip.", "source_error")
         finish_job(queue, job, directory, result)
+        queue.save()
+        queue.record(job, "ready", "File is ready", {"size": job.get("size"), "filename": job.get("filename")})
     except asyncio.CancelledError:
         raise
     except Exception as exc:
@@ -106,6 +115,8 @@ async def run_job(queue, job):
                        speed=None, eta=None, finished_at=time.time())
             if not job.get("diagnostic"):
                 job["diagnostic"] = f"{type(exc).__name__}: {message}"[:400]
+            queue.save()
+            queue.record(job, "failed", message[:160], {"error_code": code})
     finally:
         if process:
             await queue.kill(process)
