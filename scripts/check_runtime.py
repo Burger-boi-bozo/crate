@@ -1,14 +1,13 @@
-"""Fail a build early when the tools required for real conversions are missing."""
+#!/usr/bin/env python3
+"""Fail deployment before restart if the checked-out Crate runtime cannot import."""
 import shutil
-import subprocess
-import sys
 
-from yt_dlp.version import __version__
+from app.runtime import app
+from app.version import RELEASE_VERSION, RUNTIME_VERSION
 
-for tool in ("ffmpeg", "ffprobe", "node"):
-    if not shutil.which(tool):
-        sys.exit(f"Missing required runtime tool: {tool}")
-    flag = "--version" if tool == "node" else "-version"
-    output = subprocess.check_output([tool, flag], text=True)
-    print(output.splitlines()[0])
-print(f"yt-dlp {__version__}")
+missing = [name for name in ("ffmpeg", "ffprobe", "node") if not shutil.which(name)]
+if missing:
+    raise SystemExit("Missing runtime tools: " + ", ".join(missing))
+if app.title != "Crate · Link to file":
+    raise SystemExit("Unexpected FastAPI application")
+print(f"Crate runtime OK: {RUNTIME_VERSION} v{RELEASE_VERSION}")
