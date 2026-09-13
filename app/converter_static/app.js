@@ -145,6 +145,7 @@ async function sync() {
     saveHistory();
     renderJobs();
     $('#notice').hidden = true;
+    $('#free-hosting-note').hidden = session.hosting === 'proxmox';
   } catch (error) {
     $('#notice').textContent = error.message;
     $('#notice').hidden = false;

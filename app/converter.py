@@ -324,6 +324,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         payload = f"{identity}.{int(time.time()) + 30 * 86400}"
         token = payload + "." + hmac.new(signing_key, payload.encode(), hashlib.sha256).hexdigest()
         response = JSONResponse({"authenticated": True, "configured": True, "access_code_required": False,
+                                 "hosting": os.getenv("CRATE_HOSTING", "render"),
                                  "max_resolution": 1080, "max_minutes": config.max_duration // 60,
                                  "max_mb": config.max_bytes // (1024 * 1024),
                                  "retention_minutes": config.ttl // 60, "supported_sites": MEDIA_HOSTS})

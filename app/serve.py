@@ -1,4 +1,4 @@
-"""Render's single-process entry point. Multiple workers would split the queue."""
+"""Single-process web entry point. Multiple workers would split the queue."""
 import os
 import uvicorn
 

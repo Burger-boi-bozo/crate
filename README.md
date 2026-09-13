@@ -2,6 +2,8 @@
 
 Paste a public media link, choose **MP4 video** or **MP3 audio**, and save the converted file. The hosted edition is a small shared tool for lessons, presentations, and offline viewing. It runs on one Render Free Python service; your home server can stay off.
 
+**Moving to Proxmox?** The [Proxmox installer](docs/PROXMOX.md) creates a separate Debian VM for this same converter and guides Cloudflare Tunnel setup. Run it from your Proxmox node's Shell.
+
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Burger-boi-bozo/crate)
 
 The button loads `render.yaml`, creates the free service, and registers `down.dpifiles.org` as its custom domain. The owner needs a Render account and DNS configuration. Visitors can paste a link immediately: no account or access code is required.
