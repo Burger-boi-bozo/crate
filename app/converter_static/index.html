@@ -7,8 +7,9 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=2">
-  <script src="/assets/app.js?v=2" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=3">
+  <script src="/assets/app.js?v=3" defer></script>
+  <script src="/assets/version.js?v=1" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -48,14 +49,14 @@
         <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files. Available space depends on your server’s disk.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
-        <p><strong>Your server, your downloads.</strong> There are no app-imposed duration, file-size, daily-job, or repeat-download caps. Downloads run one at a time, and queued jobs resume after a restart.</p>
+        <p><strong>Your server, your downloads.</strong> There are no app-imposed duration, file-size, daily-job, or repeat-download caps. Downloads can run in parallel, and queued jobs resume after a restart.</p>
         <p><strong>Pick your quality.</strong> Choose the maximum source quality or a smaller video resolution. MP3 goes up to 320 kbps; original audio and video preserve the source codecs without re-encoding. Sources are never upscaled.</p>
         <p><strong>Music links.</strong> Spotify and Apple Music song links find public YouTube recordings for you to check and choose. They do not export subscription streams or guarantee an identical recording. SoundCloud, Bandcamp, Apple Podcasts and other supported public links download directly.</p>
         <p><strong>Source availability.</strong> Some sites require login or reject automated requests. Use individual public recordings; playlists, ongoing live streams and protected media are not supported.</p>
         <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
       </div></details>
     </main>
-    <footer><a class="brand footer-brand" href="/">crate.</a><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v2.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
 </body>
 </html>

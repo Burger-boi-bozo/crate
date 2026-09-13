@@ -11,8 +11,30 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
+from pathlib import Path
 
 from app import converter
+
+RELEASE_VERSION = "2.0.0"
+
+
+def version_payload() -> dict[str, str]:
+    """Return the release version and exact deployed Git revision."""
+    build = os.getenv("CRATE_BUILD_SHA", "").strip()
+    if not build:
+        try:
+            build = subprocess.run(
+                ["git", "-C", str(Path(__file__).resolve().parents[1]), "rev-parse", "--short=8", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=2,
+            ).stdout.strip()
+        except (OSError, subprocess.SubprocessError):
+            build = "dev"
+    build = build[:12] or "dev"
+    return {"version": RELEASE_VERSION, "build": build, "label": f"v{RELEASE_VERSION} · {build}"}
 
 
 class ParallelQueue(converter.Queue):
@@ -50,3 +72,8 @@ class ParallelQueue(converter.Queue):
 # existing endpoints, sessions, validation and frontend behavior intact.
 converter.Queue = ParallelQueue
 app = converter.create_app()
+
+
+@app.get("/api/version")
+async def version():
+    return version_payload()
