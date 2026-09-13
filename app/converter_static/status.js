@@ -7,13 +7,21 @@ function formatBytes(value) {
   return `${size.toFixed(index ? 1 : 0)} ${units[index]}`;
 }
 
+async function statusData() {
+  let response = await fetch('/api/status', {headers: {'X-Crate-Request': '1'}});
+  if (response.status === 401) {
+    await fetch('/api/session', {headers: {'X-Crate-Request': '1'}});
+    response = await fetch('/api/status', {headers: {'X-Crate-Request': '1'}});
+  }
+  if (!response.ok) throw new Error('Status unavailable');
+  return response.json();
+}
+
 async function refreshServerStatus() {
   const panel = document.querySelector('#server-status');
   if (!panel) return;
   try {
-    const response = await fetch('/api/status', {headers: {'X-Crate-Request': '1'}});
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await statusData();
     document.querySelector('#status-state').textContent = data.status === 'ok' ? 'Online' : data.status;
     document.querySelector('#status-workers').textContent = String(data.workers ?? '—');
     document.querySelector('#status-active').textContent = String(data.active ?? 0);
