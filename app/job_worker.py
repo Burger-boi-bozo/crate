@@ -13,6 +13,7 @@ from app.runner_process import spawn
 
 async def read_events(queue, job, process, started):
     last_event = time.monotonic()
+    last_saved = last_event
     result = None
     readline = asyncio.create_task(process.stdout.readline())
     try:
@@ -44,8 +45,12 @@ async def read_events(queue, job, process, started):
             if kind == "progress" and job.get("status") != "paused":
                 previous_stage = job.get("stage")
                 apply_progress(job, event)
+                queue.progress_changed(job)
                 if job.get("stage") != previous_stage:
                     queue.event(job, "stage", f"Stage changed to {job['stage']}", {"stage": job["stage"]})
+                if last_event - last_saved >= 5:
+                    queue.save()
+                    last_saved = last_event
             elif kind == "result":
                 result = event
             elif kind == "error":
