@@ -1,4 +1,4 @@
-/* Crate v3 controls and detailed progress, layered onto the existing UI. */
+/* Crate v4 controls, detailed progress, diagnostics, and activity history. */
 activeStates.add('paused');
 const baseRenderJobs = renderJobs;
 
@@ -44,6 +44,33 @@ async function jobAction(job, action, button) {
   }
 }
 
+async function toggleActivity(job, row, button) {
+  const existing = row.querySelector('.job-activity');
+  if (existing) {
+    existing.remove();
+    button.textContent = 'Activity';
+    return;
+  }
+  button.disabled = true;
+  try {
+    const events = await api(`/api/jobs/${encodeURIComponent(job.id)}/events`);
+    const panel = element('div', 'job-activity');
+    if (!events.length) panel.append(element('p', '', 'No activity recorded yet.'));
+    for (const event of events) {
+      const item = element('div', 'activity-item');
+      const when = new Date(event.created_at * 1000).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+      item.append(element('time', '', when), element('span', '', event.message || event.kind));
+      panel.append(item);
+    }
+    row.querySelector('.job-content')?.append(panel);
+    button.textContent = 'Hide activity';
+  } catch (error) {
+    showError(error.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
 renderJobs = function enhancedRenderJobs() {
   baseRenderJobs();
   const all = allJobs();
@@ -63,16 +90,26 @@ renderJobs = function enhancedRenderJobs() {
       content.append(details);
     }
     const actions = row.querySelector('.job-actions');
-    if (!actions || actions.querySelector('[data-v3-action]')) return;
-    if (['queued', 'downloading', 'converting'].includes(job.status)) {
-      const pause = element('button', 'text-button', 'Pause');
-      pause.dataset.v3Action = 'pause'; pause.onclick = () => jobAction(job, 'pause', pause); actions.prepend(pause);
-    } else if (job.status === 'paused') {
-      const resume = element('button', 'text-button', 'Resume');
-      resume.dataset.v3Action = 'resume'; resume.onclick = () => jobAction(job, 'resume', resume); actions.prepend(resume);
-    } else if (['failed', 'cancelled', 'expired'].includes(job.status)) {
-      const retry = element('button', 'text-button', 'Retry');
-      retry.dataset.v3Action = 'retry'; retry.onclick = () => jobAction(job, 'retry', retry); actions.prepend(retry);
+    if (!actions) return;
+    if (!actions.querySelector('[data-v4-control]')) {
+      let control;
+      if (['queued', 'downloading', 'converting'].includes(job.status)) {
+        control = element('button', 'text-button', 'Pause');
+        control.onclick = () => jobAction(job, 'pause', control);
+      } else if (job.status === 'paused') {
+        control = element('button', 'text-button', 'Resume');
+        control.onclick = () => jobAction(job, 'resume', control);
+      } else if (['failed', 'cancelled', 'expired'].includes(job.status)) {
+        control = element('button', 'text-button', 'Retry');
+        control.onclick = () => jobAction(job, 'retry', control);
+      }
+      if (control) { control.dataset.v4Control = '1'; actions.prepend(control); }
+    }
+    if (jobs.some(current => current.id === job.id) && !actions.querySelector('[data-v4-activity]')) {
+      const activity = element('button', 'text-button', 'Activity');
+      activity.dataset.v4Activity = '1';
+      activity.onclick = () => toggleActivity(job, row, activity);
+      actions.append(activity);
     }
   });
 };
