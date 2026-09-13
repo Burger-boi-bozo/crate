@@ -1,3 +1,4 @@
+import asyncio
 import json
 
 import pytest
@@ -7,7 +8,10 @@ from app.models import Config
 
 
 @pytest.mark.asyncio
-async def test_interrupted_jobs_requeue_and_partial_files_are_removed(tmp_path):
+async def test_interrupted_jobs_requeue_and_partial_files_are_removed(tmp_path, monkeypatch):
+    async def idle(self):
+        await asyncio.Event().wait()
+    monkeypatch.setattr(Queue, "work", idle)
     job_id = "a" * 32
     folder = tmp_path / ("job-" + job_id)
     folder.mkdir()
