@@ -34,8 +34,12 @@ def host(monkeypatch):
     monkeypatch.setattr(Path, "read_text", lambda p, *a, **k: "MemAvailable: 8000000 kB\n"
                         if str(p) == "/proc/meminfo" else original_read(p, *a, **k))
     def read_only_command(*args, **kwargs):
-        assert args[:4] == ("ip", "-j", "link", "show"), "Preflight attempted a mutation"
-        return subprocess.CompletedProcess(args, 0, json.dumps([{"linkinfo": {"info_kind": "bridge"}}]))
+        assert args[0] == "ip" and args[-4:] == ("link", "show", "dev", "vmbr0"), "Preflight attempted a mutation"
+        # Ordinary ip JSON output omits the interface kind; details are required.
+        link = {"ifname": "vmbr0", "link_type": "ether", "operstate": "UP"}
+        if "-d" in args or "-details" in args:
+            link["linkinfo"] = {"info_kind": "bridge"}
+        return subprocess.CompletedProcess(args, 0, json.dumps([link]))
     monkeypatch.setattr(installer, "run", read_only_command)
     def no_fetch(url):
         raise AssertionError("Preflight must not download or execute code")

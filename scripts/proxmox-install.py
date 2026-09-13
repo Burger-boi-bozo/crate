@@ -72,7 +72,8 @@ def main():
                          if line.startswith("MemAvailable:"))) // 1024
     if available < args.memory + 512:
         raise RuntimeError("Insufficient available RAM for the VM plus host headroom.")
-    links = json.loads(run("ip", "-j", "link", "show", "dev", args.bridge).stdout)
+    # Request details so iproute2 includes linkinfo.info_kind.
+    links = json.loads(run("ip", "-j", "-d", "link", "show", "dev", args.bridge).stdout)
     if not links or links[0].get("linkinfo", {}).get("info_kind") != "bridge":
         raise RuntimeError("Select an existing Linux bridge with --bridge. No host networking will be changed.")
     node = socket.gethostname().split(".")[0]
