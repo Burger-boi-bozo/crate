@@ -8,17 +8,18 @@
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/assets/styles.css?v=4">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=4">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=5">
   <script src="/assets/app.js?v=4" defer></script>
-  <script src="/assets/enhancements.js?v=4" defer></script>
+  <script src="/assets/enhancements.js?v=5" defer></script>
   <script src="/assets/preview.js?v=4" defer></script>
+  <script src="/assets/live.js?v=1" defer></script>
   <script src="/assets/version.js?v=4" defer></script>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="/" aria-label="Crate home"><span class="brand-icon" aria-hidden="true">↧</span> crate<span class="brand-dot">.</span></a>
-      <div class="top-right"><span class="host-label">YOUR MEDIA, READY TO GO</span></div>
+      <div class="top-right"><span class="host-label">YOUR MEDIA, READY TO GO</span><span id="live-connection" class="live-connection" data-state="polling">POLLING</span></div>
     </header>
     <main>
       <section class="intro">
@@ -50,10 +51,12 @@
         <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
-        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files.</p>
+        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files. Crate keeps a free-space reserve so a conversion cannot fill the VM.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
         <p><strong>Preview before downloading.</strong> Crate checks the public page first and shows the title, creator, duration, and thumbnail when the source provides them.</p>
+        <p><strong>Live progress.</strong> v4 streams job changes directly to your browser. Polling remains available automatically if the live stream disconnects.</p>
+        <p><strong>Activity history.</strong> Each server-side job records queue, stage, pause, retry, success, and failure events so you can inspect what happened.</p>
         <p><strong>Your server, your downloads.</strong> Downloads run in parallel, can be paused or resumed, and interrupted jobs are safely requeued after a restart.</p>
         <p><strong>Pick your quality.</strong> Choose the maximum source quality or a smaller video resolution. MP3 goes up to 320 kbps; original audio and video preserve the source codecs without re-encoding. Sources are never upscaled.</p>
         <p><strong>Music links.</strong> Spotify and Apple Music song links find public YouTube recordings for you to check and choose. They do not export subscription streams or guarantee an identical recording.</p>
