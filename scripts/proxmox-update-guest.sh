@@ -13,16 +13,23 @@ old_ref="$(git rev-parse HEAD)"
 git fetch origin "$ref"
 git cat-file -e "$ref^{commit}"
 systemctl stop crate
+set_build_ref() {
+  local revision="$1"
+  sed -i '/^CRATE_BUILD_SHA=/d' /etc/crate/environment
+  printf 'CRATE_BUILD_SHA=%s\n' "$revision" >> /etc/crate/environment
+}
 rollback() {
   trap - ERR
   echo "Update failed; restoring the previous app revision."
   git checkout --detach "$old_ref"
+  set_build_ref "$old_ref"
   systemctl restart crate
 }
 trap rollback ERR
 git checkout --detach "$ref"
 .venv/bin/pip install -r requirements-converter.txt
 .venv/bin/python scripts/check_runtime.py
+set_build_ref "$ref"
 # Remove only the fixed resource ceilings supplied by Crate's original installer.
 mkdir -p /etc/systemd/system/crate.service.d
 cat > /etc/systemd/system/crate.service.d/download-resources.conf <<'UNIT'
