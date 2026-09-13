@@ -23,14 +23,14 @@ rollback() {
   echo "Update failed; restoring the previous app revision."
   git checkout --detach "$old_ref"
   set_build_ref "$old_ref"
+  .venv/bin/pip install -r requirements.txt
   systemctl restart crate
 }
 trap rollback ERR
 git checkout --detach "$ref"
-.venv/bin/pip install -r requirements-converter.txt
+.venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/check_runtime.py
 set_build_ref "$ref"
-# Remove only the fixed resource ceilings supplied by Crate's original installer.
 mkdir -p /etc/systemd/system/crate.service.d
 cat > /etc/systemd/system/crate.service.d/download-resources.conf <<'UNIT'
 [Service]
@@ -39,17 +39,20 @@ TasksMax=infinity
 UNIT
 systemctl daemon-reload
 systemctl start crate
-.venv/bin/python - <<'PY'
-import json, time, urllib.request
-for attempt in range(30):
+.venv/bin/python - "$ref" <<'PY'
+import json, sys, time, urllib.request
+revision = sys.argv[1]
+for attempt in range(45):
     try:
         with urllib.request.urlopen("http://127.0.0.1:8080/api/health", timeout=2) as response:
             health = json.load(response)
-        assert health["status"] == "ok" and health["version"] == "self-hosted-quality-2"
-        print("Verified: app healthy, quality update active, no access code.")
+        assert health["status"] == "ok"
+        assert health["runtime"] == "crate-v3"
+        assert health["build"] == revision[:12]
+        print("Verified Crate v3 health at", revision[:12])
         break
     except Exception:
-        if attempt == 29:
+        if attempt == 44:
             raise
         time.sleep(1)
 PY
@@ -67,9 +70,9 @@ cat > /etc/systemd/system/crate-auto-update.timer <<'UNIT'
 [Unit]
 Description=Check GitHub for tested Crate updates
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=5min
-RandomizedDelaySec=60
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=15
 Persistent=true
 [Install]
 WantedBy=timers.target
