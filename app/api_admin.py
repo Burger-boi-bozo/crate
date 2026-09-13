@@ -33,10 +33,11 @@ def memory_stats():
 
 
 def public_job(queue, job):
-    data = {key: value for key, value in job.items() if key not in {"owner", "path", "serves", "paused_from"}}
+    hidden = {"owner", "path", "serves", "paused_from", "url"}
+    data = {key: value for key, value in job.items() if key not in hidden}
     data["queue_position"] = queue.queue_position(job["id"])
     try:
-        data["source_host"] = urlsplit(job.get("url", "")).hostname or "unknown"
+        data["source_host"] = (urlsplit(job.get("url", "")).hostname or "unknown").removeprefix("www.")
     except ValueError:
         data["source_host"] = "unknown"
     return data
@@ -52,12 +53,9 @@ def provider_summary(jobs):
             host = "unknown"
         row = providers[host]
         row["total"] += 1
-        if job.get("status") == "ready":
-            row["ready"] += 1
-        if job.get("status") == "failed":
-            row["failed"] += 1
-        if job.get("error_code") in blocked_codes:
-            row["blocked"] += 1
+        if job.get("status") == "ready": row["ready"] += 1
+        if job.get("status") == "failed": row["failed"] += 1
+        if job.get("error_code") in blocked_codes: row["blocked"] += 1
     return [{"host": host, **values} for host, values in sorted(providers.items(), key=lambda item: -item[1]["total"])[:20]]
 
 
@@ -98,26 +96,21 @@ def install(app, queue, config, key):
     async def cancel(job_id: str, request: Request):
         require_admin(request, key)
         job = queue.jobs.get(job_id)
-        if not job:
-            raise HTTPException(404, "Job not found.")
-        if job.get("status") not in ACTIVE:
-            raise HTTPException(409, "This job is not active.")
+        if not job: raise HTTPException(404, "Job not found.")
+        if job.get("status") not in ACTIVE: raise HTTPException(409, "This job is not active.")
         return public_job(queue, await queue.cancel(job))
 
     @app.post("/api/admin/jobs/{job_id}/retry", status_code=202)
     async def retry(job_id: str, request: Request):
         require_admin(request, key)
         job = queue.jobs.get(job_id)
-        if not job:
-            raise HTTPException(404, "Job not found.")
+        if not job: raise HTTPException(404, "Job not found.")
         return public_job(queue, queue.retry(job["owner"], job))
 
     @app.delete("/api/admin/jobs/{job_id}", status_code=204)
     async def delete(job_id: str, request: Request):
         require_admin(request, key)
         job = queue.jobs.get(job_id)
-        if not job:
-            raise HTTPException(404, "Job not found.")
+        if not job: raise HTTPException(404, "Job not found.")
         await queue.cancel(job)
-        queue.jobs.pop(job_id, None)
-        queue.save()
+        queue.delete(job_id)
