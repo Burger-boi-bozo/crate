@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 import shutil
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -49,7 +49,7 @@ def create_app(config: Config | None = None) -> FastAPI:
 
     @app.get("/api/session")
     @app.post("/api/session")
-    async def session(request):
+    async def session(request: Request):
         return session_response(request, config, key, MEDIA_HOSTS)
 
     @app.delete("/api/session", status_code=204)

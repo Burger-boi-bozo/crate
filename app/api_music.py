@@ -4,14 +4,14 @@ import json
 import os
 import sys
 
-from fastapi import HTTPException
+from fastapi import HTTPException, Request
 
 from app.media_policy import validate_url
 
 
 def install(app, queue, owner):
     @app.post("/api/music/lookup")
-    async def music_lookup(request):
+    async def music_lookup(request: Request):
         owner(request)
         body = await request.json()
         try:
