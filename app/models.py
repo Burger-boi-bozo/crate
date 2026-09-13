@@ -31,6 +31,7 @@ class Config:
     workers: int = field(default_factory=lambda: env_int("CRATE_WORKERS", 2, 1, 8))
     stall_timeout: int = field(default_factory=lambda: env_int("CRATE_STALL_TIMEOUT", 300, 30, 3600))
     preview_timeout: int = field(default_factory=lambda: env_int("CRATE_PREVIEW_TIMEOUT", 20, 5, 60))
+    min_free_bytes: int = field(default_factory=lambda: env_int("CRATE_MIN_FREE_BYTES", 1024 ** 3, 0))
     max_bytes: int = 0
     max_work_bytes: int = 0
     max_duration: int = 0
