@@ -1,5 +1,4 @@
 import asyncio
-from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
@@ -8,8 +7,6 @@ from app.models import Config, Submission
 from app.runtime import create_app
 from app.version import version_payload
 
-HEADERS = {"X-Crate-Request": "1", "Origin": "https://testserver"}
-
 
 def test_version_uses_deployed_sha(monkeypatch):
     monkeypatch.setenv("CRATE_BUILD_SHA", "abcdef1234567890")
@@ -17,7 +14,7 @@ def test_version_uses_deployed_sha(monkeypatch):
 
 
 def test_status_reports_disk_workers_and_version(tmp_path, monkeypatch):
-    async def idle(self, job):
+    async def idle(self):
         await asyncio.Event().wait()
     monkeypatch.setattr("app.job_queue.Queue.work", idle)
     app = create_app(Config(data_dir=tmp_path, secret="test", secure_cookie=False, workers=2))
