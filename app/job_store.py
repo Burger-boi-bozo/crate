@@ -84,9 +84,10 @@ class JobStore:
 
     def add_event(self, job: dict, kind: str, message: str, payload: dict | None = None):
         created_at = time.time()
+        owner = str(job.get("owner", ""))
         with self.connect() as db:
             cursor = db.execute("INSERT INTO events(job_id, owner, created_at, kind, message, payload) VALUES(?,?,?,?,?,?)",
-                                (job["id"], job["owner"], created_at, kind, message,
+                                (job["id"], owner, created_at, kind, message,
                                  json.dumps(payload or {}, separators=(",", ":"))))
             seq = cursor.lastrowid
         return {"seq": seq, "job_id": job["id"], "created_at": created_at,
