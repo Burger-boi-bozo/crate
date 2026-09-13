@@ -39,7 +39,7 @@ def test_anonymous_sessions_and_cross_browser_isolation(app, monkeypatch):
         page = client.get("/")
         assert page.status_code == 200
         assert 'id="login-form"' not in page.text and 'id="access-code"' not in page.text
-        assert "1080p" in page.text
+        assert 'id="quality"' in page.text
         assert client.get("/api/jobs").status_code == 401
         start_session(client)
         cookie = client.cookies.get("crate_session")
@@ -116,14 +116,15 @@ def test_provider_failures_are_distinguishable_and_logs_redact_urls():
     assert "403" in diagnostic
 
 
-def test_selects_1080p_instead_of_720p_or_4k():
+@pytest.mark.parametrize("quality,expected", [("best", 2160), ("1080", 1080), ("720", 720)])
+def test_selects_requested_quality(quality, expected):
     formats = [{"format_id": str(height), "url": f"https://media.example/{height}.mp4",
                 "ext": "mp4", "height": height, "width": height * 16 // 9,
                 "vcodec": "avc1", "acodec": "aac", "protocol": "https"}
                for height in (360, 720, 1080, 2160)]
-    with PublicYoutubeDL({"quiet": True, "proxy": "", **format_options("mp4")}) as downloader:
+    with PublicYoutubeDL({"quiet": True, "proxy": "", **format_options("mp4", quality)}) as downloader:
         selected = downloader.process_ie_result({"id": "test", "title": "Test", "formats": formats}, download=False)
-    assert selected["height"] == 1080
+    assert selected["height"] == expected
 
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "10.1.1.1", "169.254.169.254", "100.64.0.1", "::1", "fd00::1", "::ffff:127.0.0.1", "224.0.0.1", "64:ff9b::7f00:1"])
@@ -144,12 +145,13 @@ def test_transport_cannot_bypass_guard():
         deny_external_download(None)
 
 
-def test_queue_limits_and_expired_file_cleanup(app):
+def test_unlimited_queue_and_explicit_expired_file_cleanup(app):
     with TestClient(app, base_url="https://testserver") as client:
         start_session(client)
         body = {"url": "https://youtu.be/BaW_jenozKc"}
         ids = [client.post("/api/jobs", json=body, headers=HEADERS).json()["id"] for _ in range(2)]
-        assert client.post("/api/jobs", json=body, headers=HEADERS).status_code == 429
+        for _ in range(15):
+            assert client.post("/api/jobs", json=body, headers=HEADERS).status_code == 202
         job = app.state.queue.jobs[ids[0]]
         folder = app.state.queue.folder(job["id"])
         folder.mkdir()
@@ -161,7 +163,7 @@ def test_queue_limits_and_expired_file_cleanup(app):
         assert job["status"] == "expired"
 
 
-def test_download_attachment_and_bounded_repeats(app):
+def test_download_attachment_unlimited_repeats_and_range(app):
     with TestClient(app, base_url="https://testserver") as client:
         start_session(client)
         job_id = client.post("/api/jobs", json={"url": "https://youtu.be/BaW_jenozKc"}, headers=HEADERS).json()["id"]
@@ -177,7 +179,10 @@ def test_download_attachment_and_bounded_repeats(app):
         assert response.headers["cache-control"] == "no-store"
         for _ in range(2):
             assert client.get(f"/api/jobs/{job_id}/file").status_code == 200
-        assert client.get(f"/api/jobs/{job_id}/file").status_code == 429
+        for _ in range(10):
+            assert client.get(f"/api/jobs/{job_id}/file").status_code == 200
+        response = client.get(f"/api/jobs/{job_id}/file", headers={"Range": "bytes=0-3"})
+        assert response.status_code == 206 and response.content == b"test"
 
 
 def test_actual_mp4_and_mp3_conversion(tmp_path):
@@ -198,7 +203,7 @@ def test_actual_mp4_and_mp3_conversion(tmp_path):
 @pytest.mark.parametrize("codec,dimensions,expected", [
     ("libx264", "1920x1080", (1920, 1080)),
     ("libvpx-vp9", "640x360", (640, 360)),
-    ("libx264", "2560x1440", (1920, 1080)),
+    ("libx264", "2560x1440", (2560, 1440)),
     ("libx264", "1080x1920", (1080, 1920)),
 ])
 def test_full_hd_codec_fallback_and_resolution_bounds(tmp_path, codec, dimensions, expected):

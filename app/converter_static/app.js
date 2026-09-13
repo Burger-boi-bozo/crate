@@ -10,10 +10,10 @@ let syncing = false;
 let history = [];
 try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { /* storage may be disabled */ }
 if (!Array.isArray(history)) history = [];
-history = history.filter(x => x && typeof x.id === 'string' && typeof x.url === 'string').slice(0, 50);
+history = history.filter(x => x && typeof x.id === 'string' && typeof x.url === 'string');
 
 function saveHistory() {
-  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history.slice(0, 50))); } catch { /* private browsing */ }
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); } catch { /* private browsing */ }
 }
 
 function showError(message) {
@@ -24,7 +24,7 @@ function showError(message) {
 async function api(path, options = {}, retry = true) {
   const response = await fetch(path, {...options, headers: {'X-Crate-Request': '1', ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
   if (response.status === 204) return null;
-  const data = await response.json().catch(() => ({detail: 'The server is waking up. Please try again in a minute.'}));
+  const data = await response.json().catch(() => ({detail: 'The server could not be reached. Please try again.'}));
   if (!response.ok) {
     if (response.status === 401 && path !== '/api/session' && retry) {
       await api('/api/session');
@@ -53,12 +53,12 @@ function renderJobs() {
   const all = allJobs();
   $('#job-count').textContent = all.length;
   $('#clear-history').hidden = !all.some(x => !activeStates.has(x.status));
-  const shown = all.filter(x => filter === 'all' || x.format === filter);
+  const shown = all.filter(x => filter === 'all' || (filter === 'mp3' ? ['mp3', 'mka'].includes(x.format) : ['mp4', 'mkv'].includes(x.format)));
   $('#empty-state').hidden = shown.length > 0;
   const fragment = document.createDocumentFragment();
   for (const job of shown) {
     const row = element('article', 'job');
-    row.append(element('div', 'job-icon', job.format === 'mp3' ? '♫' : '▷'));
+    row.append(element('div', 'job-icon', ['mp3', 'mka'].includes(job.format) ? '♫' : '▷'));
     const content = element('div', 'job-content');
     content.append(element('h3', 'job-title', job.title || 'Media clip'));
     let source = '';
@@ -80,31 +80,8 @@ function renderJobs() {
       const link = element('a', 'download-link', 'Download ↓');
       link.href = `/api/jobs/${encodeURIComponent(job.id)}/file`;
       link.download = job.filename || `download.${job.format}`;
-      link.onclick = async event => {
-        event.preventDefault();
-        if (link.dataset.busy) return;
-        link.dataset.busy = 'true';
-        link.textContent = 'Saving…';
-        showError('');
-        try {
-          // Keep expired-file and quota errors on this page instead of opening
-          // a raw JSON error. Outputs are bounded to 100 MB by the server.
-          const response = await fetch(link.href);
-          if (!response.ok) {
-            const error = await response.json().catch(() => ({}));
-            throw new Error(error.detail || 'The file could not be saved. Please try again.');
-          }
-          const objectUrl = URL.createObjectURL(await response.blob());
-          const save = element('a');
-          save.href = objectUrl;
-          save.download = link.download;
-          document.body.append(save);
-          save.click();
-          save.remove();
-          setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
-        } catch (error) { showError(error.message); await sync(); }
-        finally { delete link.dataset.busy; link.textContent = 'Download ↓'; }
-      };
+      // A native download streams to disk instead of buffering the entire file.
+      link.onclick = () => showError('');
       actions.append(link);
     }
     if (activeStates.has(job.status)) {
@@ -119,8 +96,10 @@ function renderJobs() {
       const again = element('button', 'text-button', 'Convert again');
       again.onclick = () => {
         $('#media-url').value = job.url;
-        const radio = $(`input[name="format"][value="${job.format === 'mp3' ? 'mp3' : 'mp4'}"]`);
+        const radio = $(`input[name="format"][value="${['mp3', 'mka'].includes(job.format) ? 'mp3' : 'mp4'}"]`);
         radio.checked = true;
+        updateQuality();
+        $('#quality').value = ['mkv', 'mka'].includes(job.format) ? 'original' : (job.quality || 'best');
         $('#media-url').focus();
         $('#convert-form').scrollIntoView({behavior: 'smooth', block: 'center'});
       };
@@ -140,12 +119,11 @@ async function sync() {
   try {
     jobs = await api('/api/jobs');
     const combined = new Map(history.map(x => [x.id, x]));
-    for (const job of jobs) combined.set(job.id, {id: job.id, url: job.url, title: job.title, format: job.format, size: job.size, created_at: job.created_at});
-    history = [...combined.values()].sort((a, b) => b.created_at - a.created_at).slice(0, 50);
+    for (const job of jobs) combined.set(job.id, {id: job.id, url: job.url, title: job.title, format: job.format, quality: job.quality, size: job.size, created_at: job.created_at});
+    history = [...combined.values()].sort((a, b) => b.created_at - a.created_at);
     saveHistory();
     renderJobs();
     $('#notice').hidden = true;
-    $('#free-hosting-note').hidden = session.hosting === 'proxmox';
   } catch (error) {
     $('#notice').textContent = error.message;
     $('#notice').hidden = false;
@@ -158,10 +136,10 @@ async function sync() {
 
 async function init() {
   try {
-    const session = await api('/api/session');
+    await api('/api/session');
     sessionReady = true;
     $('#convert-button').disabled = false;
-    $('#limits').textContent = `Up to ${session.max_minutes} minutes · ${session.max_mb} MB per file`;
+    $('#limits').textContent = 'No duration, file-size, or daily download caps';
     $('#notice').hidden = true;
     await sync();
     renderJobs();
@@ -177,7 +155,24 @@ $('#convert-form').onsubmit = async event => {
   button.disabled = true;
   showError('');
   try {
-    const job = await api('/api/jobs', {method: 'POST', body: JSON.stringify({url: $('#media-url').value.trim(), format: $('input[name="format"]:checked').value})});
+    const url = $('#media-url').value.trim();
+    const parsed = new URL(url);
+    if (['open.spotify.com', 'spotify.link'].includes(parsed.hostname) || (parsed.hostname === 'music.apple.com' && !parsed.pathname.includes('/post/'))) {
+      $('#music-results').hidden = false;
+      $('#music-results').textContent = 'Finding public recordings…';
+      try {
+        const result = await api('/api/music/lookup', {method: 'POST', body: JSON.stringify({url})});
+        renderMatches(result);
+      } catch (error) {
+        $('#music-results').hidden = true;
+        throw error;
+      }
+      return;
+    }
+    const mode = $('input[name="format"]:checked').value;
+    const quality = $('#quality').value;
+    const format = quality === 'original' ? (mode === 'mp3' ? 'mka' : 'mkv') : mode;
+    const job = await api('/api/jobs', {method: 'POST', body: JSON.stringify({url, format, quality: quality === 'original' ? 'best' : quality})});
     $('#media-url').value = '';
     jobs.push(job);
     renderJobs();
@@ -205,4 +200,41 @@ document.querySelectorAll('[data-filter]').forEach(button => button.onclick = ()
 });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) sync(); });
 window.addEventListener('focus', sync);
+function updateQuality() {
+  const audio = $('input[name="format"]:checked').value === 'mp3';
+  const choices = audio
+    ? [['best', 'Best MP3 · 320 kbps'], ['original', 'Original audio · no re-encoding (MKA)'], ['256', '256 kbps'], ['192', '192 kbps'], ['128', '128 kbps']]
+    : [['best', 'Maximum available · MP4'], ['original', 'Original video + audio · MKV'], ['2160', 'Up to 4K · 2160p'], ['1440', 'Up to 1440p'], ['1080', 'Up to 1080p'], ['720', 'Up to 720p'], ['480', 'Up to 480p']];
+  $('#quality').replaceChildren(...choices.map(([value, label]) => {
+    const option = element('option', '', label); option.value = value; return option;
+  }));
+  $('#quality-note').textContent = audio
+    ? 'Original keeps the source audio without another lossy conversion. Higher MP3 bitrates cannot restore detail missing from the source.'
+    : 'Maximum uses the best source resolution, including 4K and 8K when available. Original preserves the source codecs; MKV may need VLC.';
+}
+function renderMatches(result) {
+  const panel = $('#music-results');
+  panel.replaceChildren(element('h3', '', result.artist + ' — ' + result.title),
+    element('p', '', 'Choose the correct recording below. These are YouTube search results, not files from ' + result.provider + '. Check the artist, version and duration before downloading.'));
+  for (const match of result.candidates) {
+    const row = element('div', 'match-row');
+    row.append(element('strong', '', match.title));
+    row.append(element('small', '', [match.artist, match.duration ? Math.floor(match.duration / 60) + ':' + String(Math.floor(match.duration % 60)).padStart(2, '0') : 'Duration unavailable'].filter(Boolean).join(' · ')));
+    const preview = element('a', 'text-button', 'Check recording ↗');
+    preview.href = match.url; preview.target = '_blank'; preview.rel = 'noopener noreferrer';
+    const select = element('button', 'text-button', 'Use this recording');
+    select.type = 'button';
+    select.onclick = () => {
+      $('#media-url').value = match.url;
+      $('input[name="format"][value="mp3"]').checked = true;
+      updateQuality();
+      panel.hidden = true;
+      $('#convert-button').focus();
+      showError('');
+    };
+    row.append(preview, select); panel.append(row);
+  }
+}
+document.querySelectorAll('input[name="format"]').forEach(input => input.addEventListener('change', updateQuality));
+updateQuality();
 init();

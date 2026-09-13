@@ -1,4 +1,4 @@
-"""Small, bounded media converter for a single free web-service instance."""
+"""Self-hosted media converter with persistent downloads and a serial queue."""
 from __future__ import annotations
 
 import asyncio
@@ -23,7 +23,7 @@ from urllib.parse import urlsplit
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.media_policy import MEDIA_HOSTS, validate_url
 
@@ -37,25 +37,35 @@ class Config:
     data_dir: Path = field(default_factory=lambda: Path(os.getenv("CRATE_DATA_DIR", "converter-data")).resolve())
     secret: str = field(default_factory=lambda: os.getenv("CRATE_SESSION_SECRET", "") or secrets.token_urlsafe(48))
     secure_cookie: bool = field(default_factory=lambda: os.getenv("CRATE_SECURE_COOKIE", "true") != "false")
-    max_bytes: int = 100 * 1024 * 1024
-    max_work_bytes: int = 400 * 1024 * 1024
-    max_duration: int = 600
-    timeout: int = 600
-    ttl: int = 3600
-    max_queue: int = 5
-    daily_jobs: int = 10
-    max_downloads: int = 3
+    max_bytes: int = 0
+    max_work_bytes: int = 0
+    max_duration: int = 0
+    timeout: int = 0
+    ttl: int = 0
+    max_queue: int = 0
+    daily_jobs: int = 0
+    max_downloads: int = 0
 
 
 class Submission(BaseModel):
     model_config = ConfigDict(extra="forbid")
     url: str = Field(min_length=8, max_length=2048)
-    format: Literal["mp4", "mp3"] = "mp4"
+    format: Literal["mp4", "mp3", "mkv", "mka"] = "mp4"
+    quality: Literal["best", "2160", "1440", "1080", "720", "480", "320", "256", "192", "128"] = "best"
 
     @field_validator("url")
     @classmethod
     def check_url(cls, value):
         return validate_url(value)
+
+    @model_validator(mode="after")
+    def check_quality(self):
+        allowed = {"best", "320", "256", "192", "128"} if self.format in {"mp3", "mka"} else {"best", "2160", "1440", "1080", "720", "480"}
+        if self.quality not in allowed:
+            raise ValueError("Choose a quality available for this format.")
+        if self.format in {"mka", "mkv"} and self.quality != "best":
+            raise ValueError("Original formats preserve the best source quality.")
+        return self
 
 
 class Queue:
@@ -68,12 +78,24 @@ class Queue:
         self.tasks: list[asyncio.Task] = []
 
     async def start(self):
-        # Files are deliberately temporary; clear leftovers from a prior process.
         self.config.data_dir.mkdir(parents=True, exist_ok=True)
-        for child in self.config.data_dir.glob("job-*"):
-            if child.is_dir() and not child.is_symlink():
-                shutil.rmtree(child)
+        state = self.config.data_dir / "jobs.json"
+        if state.is_file():
+            self.jobs = json.loads(state.read_text())
+            for job in self.jobs.values():
+                if job["status"] in ACTIVE:
+                    shutil.rmtree(self.folder(job["id"]), ignore_errors=True)
+                    job.update(status="queued", progress=0)
+                    self.pending.put_nowait(job["id"])
+        self.expire()
         self.tasks = [asyncio.create_task(self.work()), asyncio.create_task(self.clean())]
+
+    def save(self):
+        self.config.data_dir.mkdir(parents=True, exist_ok=True)
+        temp = self.config.data_dir / "jobs.json.tmp"
+        temp.write_text(json.dumps(self.jobs))
+        temp.chmod(0o600)
+        temp.replace(self.config.data_dir / "jobs.json")
 
     async def stop(self):
         for task in self.tasks:
@@ -81,6 +103,7 @@ class Queue:
         for proc in list(self.processes.values()):
             await self.kill(proc)
         await asyncio.gather(*self.tasks, return_exceptions=True)
+        self.save()
 
     @staticmethod
     async def kill(proc):
@@ -96,23 +119,22 @@ class Queue:
         now = time.time()
         while self.daily and self.daily[0] < now - 86400:
             self.daily.popleft()
-        if len(self.daily) >= self.config.daily_jobs:
+        if self.config.daily_jobs and len(self.daily) >= self.config.daily_jobs:
             raise HTTPException(429, "Today's conversion allowance is used. Please try again tomorrow.")
         active = [j for j in self.jobs.values() if j["status"] in ACTIVE]
-        if len(active) >= self.config.max_queue:
+        if self.config.max_queue and len(active) >= self.config.max_queue:
             raise HTTPException(429, "The queue is full. Please try again in a few minutes.")
-        if sum(j["owner"] == owner for j in active) >= 2:
-            raise HTTPException(429, "Please wait for one of your current conversions to finish.")
         if shutil.disk_usage(self.config.data_dir).free < self.config.max_work_bytes * 2:
             raise HTTPException(503, "Storage is busy. Please try again after older files expire.")
         job_id = secrets.token_hex(16)
-        job = dict(id=job_id, owner=owner, url=body.url, format=body.format,
+        job = dict(id=job_id, owner=owner, url=body.url, format=body.format, quality=body.quality,
                    title=urlsplit(body.url).hostname, status="queued", progress=0,
                    created_at=now, finished_at=None, expires_at=None, error=None,
                    size=None, width=None, height=None, error_code=None, filename=None, path=None, serves=0)
         self.jobs[job_id] = job
         self.daily.append(now)
         self.pending.put_nowait(job_id)
+        self.save()
         return job
 
     def owned(self, job_id, owner):
@@ -132,6 +154,7 @@ class Queue:
                 await self.kill(proc)
         shutil.rmtree(self.folder(job["id"]), ignore_errors=True)
         job["path"] = None
+        self.save()
 
     async def work(self):
         while True:
@@ -156,7 +179,7 @@ class Queue:
         try:
             proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-m", "app.media_runner", job["url"], job["format"],
-                str(directory), str(self.config.max_bytes), str(self.config.max_duration),
+                str(directory), str(self.config.max_bytes), str(self.config.max_duration), job.get("quality", "best"),
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                 env=env, start_new_session=True,
             )
@@ -167,10 +190,10 @@ class Queue:
             try:
                 while True:
                     done, _ = await asyncio.wait({readline}, timeout=1)
-                    if time.monotonic() - started > self.config.timeout:
+                    if self.config.timeout and time.monotonic() - started > self.config.timeout:
                         raise ValueError("This conversion took too long. Try a shorter clip.")
                     used = sum(p.stat().st_size for p in directory.rglob("*") if p.is_file())
-                    if used > self.config.max_work_bytes:
+                    if self.config.max_work_bytes and used > self.config.max_work_bytes:
                         raise ValueError("This clip needs too much temporary space. Try a smaller clip.")
                     if not done:
                         continue
@@ -203,12 +226,13 @@ class Queue:
                 raise ValueError("The source could not provide this media. Try another public clip.")
             path = (directory / result["file"]).resolve()
             if (path.parent != directory.resolve() or path.is_symlink() or not path.is_file()
-                    or path.suffix != "." + job["format"] or not 0 < path.stat().st_size <= self.config.max_bytes):
+                    or path.suffix != "." + job["format"] or path.stat().st_size <= 0
+                    or (self.config.max_bytes and path.stat().st_size > self.config.max_bytes)):
                 raise ValueError("No usable file was produced within the size limit.")
             job.update(status="ready", progress=100, title=result["title"][:200],
                        filename=result["filename"], path=str(path), size=path.stat().st_size,
                        width=result.get("width"), height=result.get("height"),
-                       finished_at=time.time(), expires_at=time.time() + self.config.ttl)
+                       finished_at=time.time(), expires_at=time.time() + self.config.ttl if self.config.ttl else None)
             for child in directory.iterdir():
                 if child != path and child.is_file():
                     child.unlink()
@@ -224,11 +248,13 @@ class Queue:
             self.processes.pop(job["id"], None)
             if job["status"] != "ready":
                 shutil.rmtree(directory, ignore_errors=True)
+            self.save()
 
     async def clean(self):
         while True:
             await asyncio.sleep(30)
             self.expire()
+            self.save()
 
     def expire(self):
         now = time.time()
@@ -236,7 +262,7 @@ class Queue:
             if job["expires_at"] and job["expires_at"] <= now and job["status"] == "ready":
                 shutil.rmtree(self.folder(job_id), ignore_errors=True)
                 job.update(status="expired", path=None)
-            if job["status"] not in ACTIVE and now - job["created_at"] > 86400:
+            if self.config.ttl and job["status"] not in ACTIVE and now - job["created_at"] > max(86400, self.config.ttl):
                 self.jobs.pop(job_id)
 
 
@@ -310,7 +336,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     async def health():
         ready = bool(shutil.which("ffmpeg") and shutil.which("ffprobe") and shutil.which("node"))
         return JSONResponse({"status": "ok" if ready else "missing_tools", "converter": "yt-dlp + FFmpeg",
-                             "version": "public-1080p-1", "max_resolution": 1080,
+                             "version": "self-hosted-quality-2", "max_resolution": None,
                              "access_code_required": False}, status_code=200 if ready else 503)
 
     @app.get("/api/session")
@@ -325,7 +351,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         token = payload + "." + hmac.new(signing_key, payload.encode(), hashlib.sha256).hexdigest()
         response = JSONResponse({"authenticated": True, "configured": True, "access_code_required": False,
                                  "hosting": os.getenv("CRATE_HOSTING", "render"),
-                                 "max_resolution": 1080, "max_minutes": config.max_duration // 60,
+                                 "max_resolution": None, "max_minutes": config.max_duration // 60,
                                  "max_mb": config.max_bytes // (1024 * 1024),
                                  "retention_minutes": config.ttl // 60, "supported_sites": MEDIA_HOSTS})
         response.set_cookie("crate_session", token, max_age=30 * 86400, httponly=True,
@@ -343,6 +369,33 @@ def create_app(config: Config | None = None) -> FastAPI:
         identity = owner(request)
         queue.expire()
         return [queue.public(job) for job in queue.jobs.values() if job["owner"] == identity]
+
+    @app.post("/api/music/lookup")
+    async def music_lookup(request: Request):
+        owner(request)
+        body = await request.json()
+        try:
+            url = validate_url(body.get("url", ""), source=False)
+        except (ValueError, AttributeError) as exc:
+            raise HTTPException(422, str(exc))
+        # Metadata/search only. Downloading requires choosing a displayed candidate.
+        env = {k: v for k, v in os.environ.items() if k in {
+            "PATH", "LANG", "LC_ALL", "LD_LIBRARY_PATH", "SSL_CERT_FILE"
+        }}
+        proc = await asyncio.create_subprocess_exec(
+            sys.executable, "-m", "app.music_lookup", url, env=env,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True)
+        try:
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=90)
+            data = json.loads(stdout)
+            if proc.returncode or data.get("error"):
+                raise HTTPException(422, data.get("error", "Song lookup failed."))
+            return data
+        except (asyncio.TimeoutError, ValueError):
+            raise HTTPException(502, "Song lookup could not reach the source. Try a public link from the artist.")
+        finally:
+            await queue.kill(proc)
 
     @app.post("/api/jobs", status_code=202)
     async def submit(body: Submission, request: Request):
@@ -362,19 +415,20 @@ def create_app(config: Config | None = None) -> FastAPI:
         job = queue.owned(job_id, owner(request))
         await queue.cancel(job)
         queue.jobs.pop(job_id, None)
+        queue.save()
         return PlainTextResponse(status_code=204)
 
-    @app.get("/api/jobs/{job_id}/file")
+    @app.api_route("/api/jobs/{job_id}/file", methods=["GET", "HEAD"])
     async def download(job_id: str, request: Request):
         queue.expire()
         job = queue.owned(job_id, owner(request))
         if job["status"] != "ready" or not job["path"] or not Path(job["path"]).is_file():
             raise HTTPException(410, "This file has expired. Paste the link again to recreate it.")
-        if job["serves"] >= config.max_downloads:
+        if config.max_downloads and job["serves"] >= config.max_downloads:
             raise HTTPException(429, "This file's download allowance is used. Create it again if needed.")
         job["serves"] += 1
         return FileResponse(job["path"], filename=job["filename"],
-                            media_type="video/mp4" if job["format"] == "mp4" else "audio/mpeg")
+                            media_type={"mp4": "video/mp4", "mp3": "audio/mpeg", "mkv": "video/x-matroska", "mka": "audio/x-matroska"}[job["format"]])
 
     @app.get("/")
     async def index():

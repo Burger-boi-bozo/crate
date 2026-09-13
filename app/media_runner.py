@@ -56,18 +56,20 @@ def probe(path: Path):
     return json.loads(result.stdout)
 
 
-def convert_file(source: Path, target: Path, output_format: str, max_duration: int, max_bytes: int):
+def convert_file(source: Path, target: Path, output_format: str, max_duration: int = 0, max_bytes: int = 0, quality: str = "best"):
     details = probe(source)
     duration = float(details.get("format", {}).get("duration") or 0)
-    if not 0 < duration <= max_duration + 1:
+    if max_duration and duration > max_duration + 1:
         raise ValueError(f"Use a clip up to {max_duration // 60} minutes long.")
     streams = details.get("streams", [])
     args = ["ffmpeg", "-nostdin", "-hide_banner", "-loglevel", "error", "-y",
             "-protocol_whitelist", "file,pipe", "-format_whitelist", MEDIA_DEMUXERS, "-threads", "1", "-i", str(source)]
-    if output_format == "mp3":
+    if output_format in {"mkv", "mka"}:
+        args += ["-map", "0:a:0", "-vn", "-c:a", "copy"] if output_format == "mka" else ["-map", "0:v:0", "-map", "0:a:0?", "-c", "copy"]
+    elif output_format == "mp3":
         if not any(s.get("codec_type") == "audio" for s in streams):
             raise ValueError("This clip has no audio track to convert.")
-        args += ["-map", "0:a:0", "-vn", "-c:a", "libmp3lame", "-b:a", "128k"]
+        args += ["-map", "0:a:0", "-vn", "-c:a", "libmp3lame", "-b:a", ("320" if quality == "best" else quality) + "k"]
     else:
         video = next((s for s in streams if s.get("codec_type") == "video"), None)
         if not video:
@@ -75,24 +77,24 @@ def convert_file(source: Path, target: Path, output_format: str, max_duration: i
         width, height = int(video.get("width") or 0), int(video.get("height") or 0)
         if min(width, height) <= 0:
             raise ValueError("This source has no usable video dimensions.")
-        bound_w, bound_h = (1920, 1080) if width >= height else (1080, 1920)
-        scale = min(1, bound_w / width, bound_h / height)
+        bound = int(quality) if quality != "best" else min(width, height)
+        bound_w, bound_h = (bound * 16 / 9, bound) if width >= height else (bound, bound * 16 / 9)
+        scale = 1 if quality == "best" else min(1, bound_w / width, bound_h / height)
         out_w, out_h = max(2, int(width * scale) // 2 * 2), max(2, int(height * scale) // 2 * 2)
         args += ["-map", "0:v:0", "-map", "0:a:0?"]
         if video.get("codec_name") == "h264" and scale == 1 and video.get("pix_fmt") == "yuv420p":
             args += ["-c:v", "copy"]
         else:
             # Convert VP9/AV1/other public media to a broadly playable MP4.
-            # Never upscale lower-resolution clips; bound encoding and bitrate.
-            max_rate = max(128, min(3500, int(max_bytes * 8 / duration / 1000 * 0.9) - 128))
-            args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
-                     "-vf", f"scale={out_w}:{out_h}", "-maxrate", f"{max_rate}k", "-bufsize", f"{max_rate * 2}k"]
+            # Never upscale; original MKV is available for codec-preserving output.
+            args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "18", "-pix_fmt", "yuv420p",
+                     "-vf", f"scale={out_w}:{out_h}"]
         audio = next((s for s in streams if s.get("codec_type") == "audio"), {})
-        args += ["-c:a", "copy"] if audio.get("codec_name") == "aac" else ["-c:a", "aac", "-b:a", "128k"]
+        args += ["-c:a", "copy"] if audio.get("codec_name") == "aac" else ["-c:a", "aac", "-b:a", "320k"]
         args += ["-movflags", "+faststart"]
     args += ["-map_metadata", "-1", "-map_chapters", "-1", "-threads", "1", str(target)]
-    subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=420, check=True)
-    if not target.is_file() or not 0 < target.stat().st_size <= max_bytes:
+    subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+    if not target.is_file() or target.stat().st_size <= 0 or (max_bytes and target.stat().st_size > max_bytes):
         raise ValueError(f"The converted file exceeds {max_bytes // (1024 * 1024)} MB. Try a smaller clip.")
     output = probe(target)
     video = next((s for s in output.get("streams", []) if s.get("codec_type") == "video"), {})
@@ -118,10 +120,10 @@ def error_code(error):
 
 def friendly_error(error):
     messages = {
-        "host_blocked": "The source blocked requests from this cloud server. This link cannot be downloaded here right now. Use a creator-provided download if available.",
+        "host_blocked": "The source blocked this server's request. Try again later or use a download provided by the creator.",
         "sign_in_required": "This source requires sign-in or age verification. This public service can only download media available without an account.",
         "source_forbidden": "The source refused access to its media file (403). Try a fresh public link or a download provided by the creator.",
-        "format_unavailable": "This source doesn't offer the selected format up to 1080p. Try MP3 or another public clip.",
+        "format_unavailable": "This source doesn't offer the selected format or quality. Try Maximum available, Audio, or another public link.",
         "unsupported_source": "This page has no supported public media. Try the link to an individual video, podcast episode, or a direct audio/video file.",
         "source_unavailable": "This clip is unavailable to the hosted downloader. Try another public link.",
     }
@@ -130,7 +132,7 @@ def friendly_error(error):
     if isinstance(error, ValueError):
         return str(error)[:250]
     if isinstance(error, subprocess.TimeoutExpired):
-        return "This conversion took too long. Try a shorter clip."
+        return "The media inspection did not finish. The file may be damaged or the source unavailable."
     return "The source could not provide this clip. It may be unsupported, restricted, or temporarily unavailable."
 
 
@@ -143,21 +145,24 @@ def safe_diagnostic(error):
     return (type(error).__name__ + ": " + " ".join(message.split()))[:400]
 
 
-def format_options(output_format):
-    return {"format": "ba/b" if output_format == "mp3" else
-            "bv[height<=?1080]+ba/b[height<=?1080]/bv[height<=?1080]",
-            "format_sort": ["res:1080", "vcodec:h264", "acodec:aac"]}
+def format_options(output_format, quality="best"):
+    if output_format in {"mp3", "mka"}:
+        if quality not in {"best", "320", "256", "192", "128"}:
+            raise ValueError("Choose a supported audio quality.")
+        return {"format": "ba/b"}
+    if quality not in {"best", "2160", "1440", "1080", "720", "480"}:
+        raise ValueError("Choose a supported video quality.")
+    bound = "" if quality == "best" else f"[height<=?{quality}]"
+    return {"format": f"bv{bound}+ba/b{bound}/bv{bound}", "format_sort": ["res", "fps", "br"]}
 
 
-def run(url, output_format, directory, max_bytes, max_duration):
+def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="best"):
     validate_url(url)
-    if output_format not in {"mp4", "mp3"}:
+    if output_format not in {"mp4", "mp3", "mkv", "mka"}:
         raise ValueError("Choose MP4 or MP3.")
-    # Bound individual files and CPU even if a native library hangs. The parent
-    # also enforces a wall-clock deadline and total working-directory size.
-    resource.setrlimit(resource.RLIMIT_FSIZE, (max_bytes * 2, max_bytes * 2))
-    resource.setrlimit(resource.RLIMIT_CPU, (480, 490))
-    resource.setrlimit(resource.RLIMIT_NOFILE, (128, 128))
+    # Optional operator file cap; normal self-hosted downloads have no cap.
+    if max_bytes:
+        resource.setrlimit(resource.RLIMIT_FSIZE, (max_bytes * 2, max_bytes * 2))
     install_network_guard()
     FFmpegFD.real_download = deny_external_download
     last_event = 0.0
@@ -165,7 +170,7 @@ def run(url, output_format, directory, max_bytes, max_duration):
     def progress(event):
         nonlocal last_event
         downloaded = event.get("downloaded_bytes") or 0
-        if downloaded > max_bytes:
+        if max_bytes and downloaded > max_bytes:
             raise ValueError("The source file is too large. Try a smaller clip.")
         now = time.monotonic()
         if now - last_event < 1 and event.get("status") != "finished":
@@ -177,7 +182,7 @@ def run(url, output_format, directory, max_bytes, max_duration):
     def check_metadata(info, *, incomplete=False):
         if info.get("is_live") or info.get("live_status") in {"is_live", "is_upcoming", "post_live"}:
             raise ValueError("Use a finished video; live streams aren't supported.")
-        if info.get("duration") and info["duration"] > max_duration:
+        if max_duration and info.get("duration") and info["duration"] > max_duration:
             raise ValueError(f"Use a clip up to {max_duration // 60} minutes long.")
         if info.get("has_drm"):
             raise ValueError("Protected media isn't supported.")
@@ -191,12 +196,12 @@ def run(url, output_format, directory, max_bytes, max_duration):
         "windowsfilenames": True, "cachedir": False, "proxy": "", "socket_timeout": 20,
         "retries": 2, "fragment_retries": 2, "extractor_retries": 1,
         "skip_unavailable_fragments": False, "concurrent_fragment_downloads": 1,
-        "max_filesize": max_bytes, "progress_hooks": [progress],
+        "max_filesize": max_bytes or None, "progress_hooks": [progress],
         "enable_file_urls": False, "hls_prefer_native": True, "external_downloader": "native",
         "js_runtimes": {"node": {}}, "remote_components": [],
         "merge_output_format": "mkv", "overwrites": True,
         "postprocessor_args": {"ffmpeg_i": ["-protocol_whitelist", "file,pipe", "-format_whitelist", MEDIA_DEMUXERS]},
-        **format_options(output_format),
+        **format_options(output_format, quality),
     }
     with PublicYoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=False)
@@ -215,7 +220,7 @@ def run(url, output_format, directory, max_bytes, max_duration):
         raise ValueError("No complete media file was returned. Try another clip.")
     emit("progress", status="converting", progress=95)
     target = directory / ("download." + output_format)
-    dimensions = convert_file(sources[0], target, output_format, max_duration, max_bytes)
+    dimensions = convert_file(sources[0], target, output_format, max_duration, max_bytes, quality)
     title = str(info.get("title") or "Media clip")[:200]
     filename = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', "_", title).strip(" .")[:100] or "Media clip"
     emit("result", file=target.name, title=title, filename=f"{filename}.{output_format}", **dimensions)
@@ -223,7 +228,7 @@ def run(url, output_format, directory, max_bytes, max_duration):
 
 if __name__ == "__main__":
     try:
-        run(sys.argv[1], sys.argv[2], Path(sys.argv[3]).resolve(), int(sys.argv[4]), int(sys.argv[5]))
+        run(sys.argv[1], sys.argv[2], Path(sys.argv[3]).resolve(), int(sys.argv[4]), int(sys.argv[5]), sys.argv[6] if len(sys.argv) > 6 else "best")
     except Exception as exc:
         emit("error", message=friendly_error(exc), code=error_code(exc), diagnostic=safe_diagnostic(exc))
         sys.exit(1)

@@ -27,11 +27,22 @@ No router port forwarding or public Proxmox dashboard is needed. Cloudflare must
 
 ## Verify the move
 
-Open the HTTPS hostname and test a short public clip, download the completed file, and check that it plays. Try YouTube separately: using your home connection changes the download origin, but does not guarantee that every site or restricted video will work. Spotify and Apple Music subscription tracks remain unsupported as full portable music files.
+Open the HTTPS hostname and test a short public clip, download the completed file, and check that it plays. Try YouTube separately: using your home connection changes the download origin, but does not guarantee that every site or restricted video will work. Spotify and Apple Music individual song links offer a public-recording lookup; visitors check and choose a YouTube recording rather than exporting a subscription stream.
 
-The app has no access code and supports MP4 up to 1080p, MP3, private browser queues, and browser history. Existing bounds remain: 10-minute clips, 100 MB output files, one conversion at a time, and 10 submissions per rolling day. Files expire after an hour or on app restart; this move does not convert the in-memory queue into a persistent database.
+The app has no access code and offers maximum available video quality, smaller-resolution choices, MP3 up to 320 kbps and original-codec MKV/MKA output. Duration, size, daily jobs, queue length, repeat downloads and conversion time have no default caps. Processing stays serial. Queue/history and files persist across restarts under /var/lib/crate/media; interrupted jobs retry from the source. Files stay until deleted, so available space depends on the VM disk.
 
 Render's temporary jobs/files are not transferred automatically. History is saved per browser and hostname. Verify the new site and save any needed old files before suspending or deleting the old Render service. DNS cutover and Render retirement are not performed by the VM creation step.
+
+## Update your existing VM
+
+Run from the Proxmox node's root shell:
+
+```bash
+curl -fL https://raw.githubusercontent.com/Burger-boi-bozo/crate/main/scripts/proxmox-update.py -o /root/crate-update.py
+python3 /root/crate-update.py
+```
+
+Use `--vmid NUMBER` if multiple installer-created Crate VMs exist. The updater verifies guest identity, refuses to overwrite tracked local code changes, preserves the tunnel/domain/environment, removes the old installer’s fixed service resource ceilings, and checks the new app’s health. A failed update restores the prior code revision. Finish active jobs before upgrading from the old edition, which did not save queue state. Existing old orphan files are not automatically imported as jobs.
 
 ## Maintenance
 

@@ -7,8 +7,8 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css">
-  <script src="/assets/app.js" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=2">
+  <script src="/assets/app.js?v=2" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -28,29 +28,30 @@
           <label for="media-url">Paste your link</label>
           <div class="url-field"><span aria-hidden="true">↗</span><input id="media-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="2048" placeholder="https://www.youtube.com/watch?v=…"></div>
           <fieldset><legend>Make it a…</legend><div class="format-options">
-            <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 · up to 1080p</small></span><span class="radio-mark"></span></label>
-            <label class="format-option"><input type="radio" name="format" value="mp3"><span class="format-icon" aria-hidden="true">♫</span><span><strong>Audio</strong><small>MP3 · 128 kbps</small></span><span class="radio-mark"></span></label>
+            <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 or original MKV</small></span><span class="radio-mark"></span></label>
+            <label class="format-option"><input type="radio" name="format" value="mp3"><span class="format-icon" aria-hidden="true">♫</span><span><strong>Audio</strong><small>MP3 or original audio</small></span><span class="radio-mark"></span></label>
           </div></fieldset>
+          <div class="quality-field"><label for="quality">Choose quality</label><select id="quality" name="quality" aria-describedby="quality-note"></select><p id="quality-note" class="quality-note"></p></div>
           <button id="convert-button" type="submit" class="primary convert-button" disabled>Create download <span aria-hidden="true">↓</span></button>
-          <p class="limits" id="limits">Up to 10 minutes · 100 MB per file</p>
+          <p class="limits" id="limits">No duration, file-size, or daily download caps</p>
         </form>
         <p id="notice" class="notice" role="status" aria-live="polite">Connecting…</p>
+        <section id="music-results" class="music-results" aria-live="polite" hidden></section>
         <p id="form-error" class="error" role="alert" hidden></p>
       </section>
-      <div class="supported"><span>TRY PUBLIC MEDIA LINKS FROM</span><p>YouTube <i>·</i> Vimeo <i>·</i> TikTok <i>·</i> Instagram <i>·</i> SoundCloud <i>·</i> and more</p><small>Also supports many podcast, social video, and direct media links. Availability depends on the source; some sites block cloud downloads.</small></div>
+      <div class="supported"><span>TRY PUBLIC MEDIA LINKS FROM</span><p>YouTube <i>·</i> Vimeo <i>·</i> TikTok <i>·</i> Instagram <i>·</i> SoundCloud <i>·</i> Spotify &amp; Apple Music song lookup</p><small>Also supports many podcast, social video, and direct media links. Music links let you choose a public recording. Other sites download directly when supported.</small></div>
       <section class="downloads-section" aria-labelledby="downloads-heading">
         <div class="section-heading"><div><span class="step-number">02 / COLLECT</span><h2 id="downloads-heading">Your downloads <span id="job-count">0</span></h2></div><button id="clear-history" class="text-button" hidden>Clear history</button></div>
         <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
-        <p class="storage-note">Save files to your device when they’re ready. Files expire after an hour and may disappear sooner if the server restarts. Recent history stays in this browser.</p>
+        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files. Available space depends on your server’s disk.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
-        <p><strong>Keep it short.</strong> This small shared service handles one conversion at a time, with a daily allowance of 10 jobs. Long clips, playlists, live streams, and private or protected media aren’t supported.</p>
-        <p id="free-hosting-note"><strong>A slow first visit is normal.</strong> Free hosting sleeps when idle. Give it about a minute to wake up.</p>
-        <p><strong>Some sites may say no.</strong> YouTube and other sites can reject requests from cloud servers. If a clip fails, try another public link or a download provided by its creator.</p>
-        <p><strong>Up to Full HD.</strong> Video uses the best available quality up to 1080p. Lower-resolution sources stay at their original size. Audio-only links need the MP3 option.</p>
-        <p><strong>Music services have limits.</strong> Spotify and Apple Music subscription songs cannot be exported to full MP3 files here. Public Apple Podcasts episodes, Bandcamp, SoundCloud, and direct unprotected media links can be tried. We don’t substitute a different song or label a preview as a full track.</p>
+        <p><strong>Your server, your downloads.</strong> There are no app-imposed duration, file-size, daily-job, or repeat-download caps. Downloads run one at a time, and queued jobs resume after a restart.</p>
+        <p><strong>Pick your quality.</strong> Choose the maximum source quality or a smaller video resolution. MP3 goes up to 320 kbps; original audio and video preserve the source codecs without re-encoding. Sources are never upscaled.</p>
+        <p><strong>Music links.</strong> Spotify and Apple Music song links find public YouTube recordings for you to check and choose. They do not export subscription streams or guarantee an identical recording. SoundCloud, Bandcamp, Apple Podcasts and other supported public links download directly.</p>
+        <p><strong>Source availability.</strong> Some sites require login or reject automated requests. Use individual public recordings; playlists, ongoing live streams and protected media are not supported.</p>
         <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
       </div></details>
     </main>

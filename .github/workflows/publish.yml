@@ -47,6 +47,9 @@ jobs:
       - name: Check Cloudflare Worker
         run: npm ci && npm run typecheck
 
+      - name: Check converter interface
+        run: npm run test:ui
+
   publish:
     if: github.event_name != 'pull_request'
     needs: test

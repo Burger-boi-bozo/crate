@@ -55,8 +55,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/crate
-MemoryMax=1536M
-TasksMax=128
+MemoryMax=infinity
+TasksMax=infinity
 UMask=0077
 [Install]
 WantedBy=multi-user.target

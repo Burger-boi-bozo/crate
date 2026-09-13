@@ -1,59 +1,66 @@
 # Crate — A link. A file. Done.
 
-Paste a public media link, choose **MP4 video** or **MP3 audio**, and save the converted file. The hosted edition is a small shared tool for lessons, presentations, and offline viewing. It runs on one Render Free Python service; your home server can stay off.
+Paste a public media link, choose a format and quality, and save the file. The converter runs on your own Proxmox VM, with Cloudflare Tunnel connecting your domain. No account or access code is required.
 
-**Moving to Proxmox?** The [Proxmox installer](docs/PROXMOX.md) creates a separate Debian VM for this same converter and guides Cloudflare Tunnel setup. Run it from your Proxmox node's Shell.
+## Self-hosted converter
 
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/Burger-boi-bozo/crate)
+- Maximum available video resolution, including 4K/8K when the source provides it; optional 2160p, 1440p, 1080p, 720p and 480p choices.
+- Compatible MP4, MP3 up to 320 kbps, or original video/audio in MKV/MKA with no re-encoding. Sources are never upscaled; MP3 bitrate does not improve source fidelity.
+- No default duration, file-size, daily-job, queue-length, repeat-download or conversion-time caps.
+- A serial queue, cancellation, browser ownership, audio/video filters and native streaming downloads for large files.
+- Persistent queue/history and completed files in `CRATE_DATA_DIR`. Interrupted jobs restart from the source after a service restart. Files remain until deleted; clearing history also deletes completed files.
+- Public links handled by yt-dlp: YouTube, Vimeo, TikTok, Instagram, Facebook, Reddit, X, SoundCloud, Bandcamp, Apple Podcasts and many more.
+- Spotify and Apple Music **individual song lookup**: read public metadata, show YouTube candidates, and let the visitor check and choose a recording before submitting it. This does not export subscription streams, silently substitute a song, or use previews as full tracks.
 
-The button loads `render.yaml`, creates the free service, and registers `down.dpifiles.org` as its custom domain. The owner needs a Render account and DNS configuration. Visitors can paste a link immediately: no account or access code is required.
+Availability depends on the source. Public pages can reject requests, require login or change their format. Individual recordings are supported; playlists, ongoing live streams, private and protected media are not. Only save media you own or have permission to download.
 
-**Keep the hosting cost at $0:** use the Free instance in a Hobby workspace **without a payment method**. Render can charge bandwidth and build overages when a payment method is present; without one, it suspends free services/builds at the limit. The app's limits reduce usage but are not a billing guarantee. See [Render's free-service limits](https://render.com/docs/free).
+[Install or update on Proxmox](docs/PROXMOX.md). Existing Render and Cloudflare Containers deployment files remain for historical compatibility; this unrestricted converter targets your own persistent server. Host resources and upstream service constraints still apply.
 
-## Hosted converter
+### Update an existing Crate VM
 
-- Public media links handled by yt-dlp, with FFmpeg for MP4 remuxing/audio encoding and MP3 conversion.
-- MP4 up to 1080p, with H.264 passthrough or conversion from other video codecs; MP3 at 128 kbps. Lower-resolution sources are never upscaled.
-- One conversion at a time, five queued/active jobs globally, two per browser.
-- Clips up to 10 minutes and output files up to 100 MB; ten submissions per rolling day while the process runs.
-- Automatic anonymous browser sessions, private download URLs, cancellation, and video/audio filters.
-- Up to 50 recent history entries stored in the current browser. Clear history deletes completed server files as well.
-- Files expire after one hour, or sooner if Render sleeps/restarts. Each file allows three download requests.
-- No R2, paid database, persistent disk, Redis, cron job, or always-on home computer.
+Run in **Proxmox → node → Shell**, as root:
 
-YouTube and other sites can block cloud-server downloads, require sign-in, or stop working when they change. This app does not bypass those restrictions, and it cannot guarantee every link. Playlists, live streams, private and protected media are excluded. Save files to your device when they are ready.
+```bash
+curl -fL https://raw.githubusercontent.com/Burger-boi-bozo/crate/main/scripts/proxmox-update.py -o /root/crate-update.py
+python3 /root/crate-update.py
+```
 
-The hosted converter accepts public HTTP(S) links across yt-dlp's site extractors, plus its generic embedded/direct-media extractor. Examples include YouTube, Vimeo, TikTok, Instagram, Facebook, Reddit, X, SoundCloud, Bandcamp, and Apple Podcasts. See the [upstream supported-site list](https://github.com/yt-dlp/yt-dlp/blob/master/supportedsites.md); listing a site does not guarantee hosted access to it. Spotify and Apple Music subscription tracks cannot be exported to full MP3 files here; the app explains that limitation before queuing and never substitutes a different recording or preview.
+The updater discovers the existing installer-created VM, verifies its SSH host key through the guest agent, updates one pinned revision and verifies health. It preserves the existing tunnel, domain and environment. If you installed more than one Crate VM, use `--vmid NUMBER`. Finish active downloads before the first update from the old nonpersistent edition.
 
-See **[free deployment and domain setup](docs/RENDER_FREE.md)** and **[the ten hosting alternatives reviewed](docs/HOSTING_OPTIONS.md)**.
+### Run locally
 
-### Run the converter locally
-
-Use Python 3.12+, FFmpeg (including ffprobe), and Node.js 22+.
+Use Python 3.12+, FFmpeg/ffprobe and Node.js 22+.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-converter.txt
-export CRATE_SECURE_COOKIE=false  # local HTTP only; keep true for hosted HTTPS
+export CRATE_SECURE_COOKIE=false
 python -m app.serve
 ```
 
-Open `http://localhost:8080`. The queue and media are temporary. `CRATE_DATA_DIR` defaults to `./converter-data`; `CRATE_SESSION_SECRET` should be a stable secret on a hosted service. Run a single Uvicorn worker because the queue is held in that process.
+Open `http://localhost:8080`. For HTTPS hosting keep `CRATE_SECURE_COOKIE=true` and use a stable `CRATE_SESSION_SECRET`. `CRATE_DATA_DIR` defaults to `./converter-data`; use a persistent directory. Run one Uvicorn worker. The app keeps network-destination validation, CSRF protection and HTTP request-abuse controls.
 
 ### Converter API
 
-Mutating requests require `X-Crate-Request: 1`; browser requests must have the same origin. Start an anonymous session and keep the returned HTTP-only cookie. This is browser ownership, not an access-code gate. Any old `CRATE_ACCESS_CODE` environment variable is ignored.
+Start with `GET /api/session` and retain the anonymous HTTP-only cookie. Mutations require `X-Crate-Request: 1` and the same browser origin.
 
-- `GET /api/session` — create/refresh an anonymous browser session and return limits
-- `POST /api/session` — the same, with no code or body required
-- `POST /api/jobs` with `{"url":"https://…","format":"mp4"}`
-- `GET /api/jobs` — only the current browser's conversions
-- `POST /api/jobs/{id}/cancel`
-- `GET /api/jobs/{id}/file` — download the completed file
-- `DELETE /api/jobs/{id}` — cancel/remove the job and its file
-- `DELETE /api/session` — discard the browser session
-- `GET /api/health` — runtime readiness
+- `POST /api/jobs`: `{"url":"https://…","format":"mp4","quality":"best"}`
+- Formats: `mp4`, `mp3`, `mkv`, `mka`. Original MKV/MKA use `quality: "best"`.
+- `POST /api/music/lookup`: `{"url":"https://open.spotify.com/track/…"}` returns public recording candidates without downloading.
+- `GET /api/jobs`: this browser’s queue and history.
+- `POST /api/jobs/{id}/cancel`, `GET /api/jobs/{id}/file`, `DELETE /api/jobs/{id}`.
+- `GET /api/health`: runtime readiness and application version.
+
+### Tests
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+npm ci
+npm run test:ui
+npm run typecheck
+```
 
 ## Original self-hosted download manager
 
