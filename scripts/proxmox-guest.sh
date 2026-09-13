@@ -18,7 +18,7 @@ with (directory / name).open('rb') as stream:
     assert hashlib.file_digest(stream, 'sha256').hexdigest() == expected, 'Node checksum mismatch'
 PY
 tar -xJf "$crate_node_tmp/node-v22.22.0-linux-x64.tar.xz" --strip-components=1 -C /opt/node22
-ln -s /opt/node22/bin/node /usr/local/bin/node
+ln -sf /opt/node22/bin/node /usr/local/bin/node
 rm -rf "$crate_node_tmp"
 id crate >/dev/null 2>&1 || useradd --system --home-dir /var/lib/crate --shell /usr/sbin/nologin crate
 install -d -o crate -g crate /var/lib/crate/media
@@ -27,16 +27,24 @@ git -C /opt/crate remote add origin https://github.com/Burger-boi-bozo/crate.git
 git -C /opt/crate fetch --depth 1 origin "$CRATE_REF"
 git -C /opt/crate checkout --detach FETCH_HEAD
 python3 -m venv /opt/crate/.venv
-/opt/crate/.venv/bin/pip install -r /opt/crate/requirements-converter.txt
+/opt/crate/.venv/bin/pip install -r /opt/crate/requirements.txt
 /opt/crate/.venv/bin/python /opt/crate/scripts/check_runtime.py
 install -d -m 700 /etc/crate
-python3 - <<'PY'
-import secrets
-from pathlib import Path
-path = Path('/etc/crate/environment')
-path.write_text('PORT=8080\nCRATE_DATA_DIR=/var/lib/crate/media\nCRATE_SECURE_COOKIE=false\nCRATE_HOSTING=proxmox\nCRATE_SESSION_SECRET=' + secrets.token_urlsafe(48) + '\n')
-path.chmod(0o600)
-PY
+crate_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
+cat > /etc/crate/environment <<EOF
+PORT=8080
+CRATE_DATA_DIR=/var/lib/crate/media
+CRATE_SECURE_COOKIE=false
+CRATE_HOSTING=proxmox
+CRATE_SESSION_SECRET=$crate_secret
+CRATE_BUILD_SHA=$CRATE_REF
+CRATE_WORKERS=2
+CRATE_FRAGMENT_CONCURRENCY=4
+CRATE_DOWNLOAD_RETRIES=4
+CRATE_FFMPEG_THREADS=0
+CRATE_STALL_TIMEOUT=300
+EOF
+chmod 600 /etc/crate/environment
 cat > /etc/systemd/system/crate.service <<'UNIT'
 [Unit]
 Description=Crate media converter
@@ -77,9 +85,9 @@ cat > /etc/systemd/system/crate-auto-update.timer <<'UNIT'
 [Unit]
 Description=Check GitHub for tested Crate updates
 [Timer]
-OnBootSec=3min
-OnUnitActiveSec=5min
-RandomizedDelaySec=60
+OnBootSec=2min
+OnUnitActiveSec=2min
+RandomizedDelaySec=15
 Persistent=true
 [Install]
 WantedBy=timers.target
@@ -91,9 +99,9 @@ curl --fail --silent --show-error --location --retry 3 \
   --output /usr/local/bin/cloudflared
 echo '03f1f25d1cc93b9ad6c60569d44060bc4f17ed97075760ed8cfca4b12dcd68cc  /usr/local/bin/cloudflared' | sha256sum --check
 chmod 755 /usr/local/bin/cloudflared
-# Verify an actual public CC0 clip through the same anonymous API visitors use.
-python3 - <<'PY'
-import http.cookiejar, json, time, urllib.request
+python3 - "$CRATE_REF" <<'PY'
+import http.cookiejar, json, sys, time, urllib.request
+expected = sys.argv[1][:12]
 client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
 def api(path, body=None):
     req = urllib.request.Request('http://127.0.0.1:8080' + path,
@@ -102,14 +110,15 @@ def api(path, body=None):
     with client.open(req, timeout=30) as response: return json.load(response)
 for _ in range(30):
     try:
-        assert api('/api/health')['status'] == 'ok'
+        health = api('/api/health')
+        assert health['status'] == 'ok' and health['runtime'] == 'crate-v3' and health['build'] == expected
         break
     except Exception: time.sleep(2)
 else: raise RuntimeError('Crate did not become healthy')
 assert api('/api/session')['access_code_required'] is False
 job = api('/api/jobs', {'url':'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4', 'format':'mp4'})
 for _ in range(60):
-    job = next(j for j in api('/api/jobs') if j['id'] == job['id'])
+    job = next(item for item in api('/api/jobs') if item['id'] == job['id'])
     if job['status'] == 'failed': raise RuntimeError(job['error'])
     if job['status'] == 'ready': break
     time.sleep(3)
@@ -117,6 +126,6 @@ else: raise RuntimeError('Media smoke test timed out')
 with client.open('http://127.0.0.1:8080/api/jobs/' + job['id'] + '/file', timeout=30) as response:
     content = response.read(2 * 1024 * 1024)
     assert len(content) == job['size'] and b'ftyp' in content[:32]
-print('Anonymous public-media download verified:', job['width'], 'x', job['height'])
+print('Crate v3 public-media download verified:', job['width'], 'x', job['height'])
 PY
 echo ready > /var/lib/crate/bootstrap-status
