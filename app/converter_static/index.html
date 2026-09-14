@@ -7,12 +7,12 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=5">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=5">
-  <script src="/assets/app.js?v=5" defer></script>
-  <script src="/assets/enhancements.js?v=5" defer></script>
-  <script src="/assets/preview.js?v=5" defer></script>
-  <script src="/assets/version.js?v=5" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=5.1">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=5.1">
+  <script src="/assets/app.js?v=5.1" defer></script>
+  <script src="/assets/enhancements.js?v=5.1" defer></script>
+  <script src="/assets/preview.js?v=5.1" defer></script>
+  <script src="/assets/version.js?v=5.1" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -38,7 +38,7 @@
           </div></fieldset>
           <div class="quality-field"><label for="quality">Choose quality</label><select id="quality" name="quality" aria-describedby="quality-note"></select><p id="quality-note" class="quality-note"></p></div>
           <button id="convert-button" type="submit" class="primary convert-button" disabled>Create download <span aria-hidden="true">↓</span></button>
-          <p class="limits" id="limits">Single links or batches of up to 20 · no duration, file-size, or daily download caps</p>
+          <p class="limits" id="limits">Single links or batches of up to 20 · downloads expire automatically after 24 hours</p>
         </form>
         <p id="notice" class="notice" role="status" aria-live="polite">Connecting…</p>
         <section id="music-results" class="music-results" aria-live="polite" hidden></section>
@@ -50,7 +50,7 @@
         <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
-        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files.</p>
+        <p class="storage-note">Completed downloads are automatically removed after 24 hours. “Clear history” deletes them sooner.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
         <p><strong>Preview before downloading.</strong> Crate checks the public page first and shows the title, creator, duration, and thumbnail when the source provides them.</p>
