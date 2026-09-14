@@ -137,6 +137,7 @@ async function sync() {
 }
 
 function startEvents() {
+  if (!window.EventSource) { sseLive = false; return; }
   if (eventStream) eventStream.close();
   eventStream = new EventSource('/api/events/stream');
   eventStream.addEventListener('jobs', event => {

@@ -10,7 +10,7 @@ from app.version import version_payload
 
 def test_version_uses_deployed_sha(monkeypatch):
     monkeypatch.setenv("CRATE_BUILD_SHA", "abcdef1234567890")
-    assert version_payload()["label"] == "v4.0.0 · abcdef123456"
+    assert version_payload()["label"] == "v5.0.0 · abcdef123456"
 
 
 def test_server_status_is_admin_only(tmp_path, monkeypatch):
@@ -29,7 +29,7 @@ def test_server_status_is_admin_only(tmp_path, monkeypatch):
         assert status["status"] == "ok"
         assert status["workers"] == 2
         assert status["disk"]["free"] > 0
-        assert status["version"] == "4.0.0"
+        assert status["version"] == "5.0.0"
         assert "providers" in status
 
 
