@@ -82,7 +82,6 @@ function renderJobs() {
       const link = element('a', 'download-link', 'Download ↓');
       link.href = `/api/jobs/${encodeURIComponent(job.id)}/file`;
       link.download = job.filename || `download.${job.format}`;
-      // A native download streams to disk instead of buffering the entire file.
       link.onclick = () => showError('');
       actions.append(link);
     }
@@ -110,7 +109,6 @@ function renderJobs() {
     row.append(content, actions);
     fragment.append(row);
   }
-  // Preserve focus across polls to make cancel/download controls keyboard-usable.
   const focused = document.activeElement;
   if (!$('#job-list').contains(focused)) $('#job-list').replaceChildren(fragment);
 }
@@ -158,7 +156,7 @@ async function init() {
     await api('/api/session');
     sessionReady = true;
     $('#convert-button').disabled = false;
-    $('#limits').textContent = 'No duration, file-size, or daily download caps';
+    $('#limits').textContent = 'Single links or batches of up to 20 · downloads expire automatically after 24 hours';
     $('#notice').hidden = true;
     await sync();
     startEvents();
@@ -178,7 +176,7 @@ $('#convert-form').onsubmit = async event => {
     const urls = $('#media-url').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
     if (!urls.length) throw new Error('Paste at least one public media URL.');
     for (const url of urls) new URL(url);
-    const mode = $('input[name=\"format\"]:checked').value;
+    const mode = $('input[name="format"]:checked').value;
     const quality = $('#quality').value;
     const format = quality === 'original' ? (mode === 'mp3' ? 'mka' : 'mkv') : mode;
     const normalizedQuality = quality === 'original' ? 'best' : quality;
