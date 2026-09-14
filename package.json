@@ -1,6 +1,6 @@
 {
-  "name": "crate-download-manager",
-  "version": "1.1.0",
+  "name": "crate",
+  "version": "5.1.0",
   "private": true,
   "type": "module",
   "scripts": {

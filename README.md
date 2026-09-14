@@ -1,58 +1,92 @@
-# Crate — A link. A file. Done.
+# Crate
 
-Paste a public media link, choose a format and quality, and save the file. The converter runs on your own Proxmox VM, with Cloudflare Tunnel connecting your domain. No account or access code is required.
+**A link. A file. Done.** Crate is a self-hosted public-media converter built for a small Proxmox VM. Paste one link or a batch, choose video or audio, and Crate handles the queue, conversion, and download.
 
-## Self-hosted converter
+Current release: **v5.1.0**
 
-- Maximum available video resolution, including 4K/8K when the source provides it; optional 2160p, 1440p, 1080p, 720p and 480p choices.
-- Compatible MP4, MP3 up to 320 kbps, or original video/audio in MKV/MKA with no re-encoding. Sources are never upscaled; MP3 bitrate does not improve source fidelity.
-- No default duration, file-size, daily-job, queue-length, repeat-download or conversion-time caps.
-- A serial queue, cancellation, browser ownership, audio/video filters and native streaming downloads for large files.
-- Persistent queue/history and completed files in `CRATE_DATA_DIR`. Interrupted jobs restart from the source after a service restart. Files remain until deleted; clearing history also deletes completed files.
-- Public links handled by yt-dlp: YouTube, Vimeo, TikTok, Instagram, Facebook, Reddit, X, SoundCloud, Bandcamp, Apple Podcasts and many more.
-- Spotify and Apple Music **individual song lookup**: read public metadata, show YouTube candidates, and let the visitor check and choose a recording before submitting it. This does not export subscription streams, silently substitute a song, or use previews as full tracks.
+## What v5.1 includes
 
-Availability depends on the source. Public pages can reject requests, require login or change their format. Individual recordings are supported; playlists, ongoing live streams, private and protected media are not. Only save media you own or have permission to download.
+- Single-link and batch downloads (up to 20 links per batch) with ZIP collection.
+- MP4, MP3, MKV, and MKA outputs with quality controls and no source upscaling.
+- Live job updates over Server-Sent Events with polling fallback.
+- SQLite/WAL persistence, restart recovery, duplicate suppression, and job timelines.
+- CPU/load-aware scheduling, heavy-job limits, per-browser fairness, and disk reserve checks.
+- Link previews with source metadata, estimated size, and format/quality recommendations.
+- Admin dashboard with queue controls, maintenance mode, cleanup, metrics, and provider health.
+- Automatic deletion of completed files after **24 hours** (`CRATE_TTL=86400`).
+- Cloudflare Tunnel deployment without opening router ports.
 
-[Install or update on Proxmox](docs/PROXMOX.md). Existing Render and Cloudflare Containers deployment files remain for historical compatibility; this unrestricted converter targets your own persistent server. Host resources and upstream service constraints still apply.
+Source availability still depends on each provider. Private/protected media, ongoing live streams, and provider login walls are not bypassed. Only download media you own or have permission to save.
 
-### Update an existing Crate VM
+## Production layout
 
-Run in **Proxmox → node → Shell**, as root:
+The current production path is:
+
+`Browser → Cloudflare Tunnel → Crate on Proxmox VM → yt-dlp / FFmpeg`
+
+The app uses a single Uvicorn process with internal workers. Production updates are pinned to the exact `main` commit and only deploy after the GitHub Actions workflow succeeds; the update script verifies the reported build SHA and rolls back on failure.
+
+## Admin
+
+Open `/admin` on your Crate hostname. There is no username.
+
+The v5.1 default admin password is `password`. On the first v5.1 upgrade, an older generated password is migrated to that default once. Later manual password changes are preserved by future updates.
+
+Because `password` is intentionally simple, change `CRATE_ADMIN_PASSWORD` if the admin page will be exposed beyond your own use.
+
+## Install or update on Proxmox
+
+See [docs/PROXMOX.md](docs/PROXMOX.md) for the full installer. To update an existing installer-managed VM:
 
 ```bash
 curl -fL https://raw.githubusercontent.com/Burger-boi-bozo/crate/main/scripts/proxmox-update.py -o /root/crate-update.py
 python3 /root/crate-update.py
 ```
 
-The updater discovers the existing installer-created VM, verifies its SSH host key through the guest agent, updates one pinned revision and verifies health. It preserves the existing tunnel, domain and environment. It also enables a five-minute systemd timer: future pushes to `main` deploy only after GitHub Actions passes, with automatic rollback when the app health check fails. If you installed more than one Crate VM, use `--vmid NUMBER`. Finish active downloads before the first update from the old nonpersistent edition.
+The installed auto-updater checks `main` every few minutes and deploys only a successful push workflow.
 
-### Run locally
+## Run locally
 
-Use Python 3.12+, FFmpeg/ffprobe and Node.js 22+.
+Requirements: Python 3.12+, FFmpeg/ffprobe, and Node.js 22+ for UI tests.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements-converter.txt
+pip install -r requirements.txt
 export CRATE_SECURE_COOKIE=false
 python -m app.serve
 ```
 
-Open `http://localhost:8080`. For HTTPS hosting keep `CRATE_SECURE_COOKIE=true` and use a stable `CRATE_SESSION_SECRET`. `CRATE_DATA_DIR` defaults to `./converter-data`; use a persistent directory. Run one Uvicorn worker. The app keeps network-destination validation, CSRF protection and HTTP request-abuse controls.
+Open `http://localhost:8080`.
 
-### Converter API
+## Main configuration
 
-Start with `GET /api/session` and retain the anonymous HTTP-only cookie. Mutations require `X-Crate-Request: 1` and the same browser origin.
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `CRATE_DATA_DIR` | `./converter-data` | Database and completed-media directory |
+| `CRATE_ADMIN_PASSWORD` | deployment default `password` | Password for `/admin` |
+| `CRATE_TTL` | `86400` | Seconds to retain completed files |
+| `CRATE_WORKERS` | `2` | Internal job workers |
+| `CRATE_HEAVY_WORKERS` | `1` | Concurrent CPU-heavy conversions |
+| `CRATE_PER_OWNER_ACTIVE` | `2` | Active jobs allowed per browser session |
+| `CRATE_MAX_BATCH` | `20` | Maximum links in one batch |
+| `CRATE_MIN_FREE_BYTES` | `1073741824` | Disk reserve before accepting new work |
 
-- `POST /api/jobs`: `{"url":"https://…","format":"mp4","quality":"best"}`
-- Formats: `mp4`, `mp3`, `mkv`, `mka`. Original MKV/MKA use `quality: "best"`.
-- `POST /api/music/lookup`: `{"url":"https://open.spotify.com/track/…"}` returns public recording candidates without downloading.
-- `GET /api/jobs`: this browser’s queue and history.
-- `POST /api/jobs/{id}/cancel`, `GET /api/jobs/{id}/file`, `DELETE /api/jobs/{id}`.
-- `GET /api/health`: runtime readiness and application version.
+## API highlights
 
-### Tests
+Start with `GET /api/session` and retain the anonymous HTTP-only cookie. Mutating requests require `X-Crate-Request: 1` and the same browser origin.
+
+- `POST /api/jobs` — submit one conversion.
+- `GET /api/jobs` — list this browser session's jobs.
+- `POST /api/batches` — submit multiple URLs.
+- `GET /api/batches/{id}` — batch state.
+- `GET /api/batches/{id}/zip` — collect a completed batch.
+- `GET /api/events/stream` — live SSE job updates.
+- `POST /api/preview` — inspect a supported public link before conversion.
+- `GET /api/health` — runtime/version readiness.
+- `/api/admin/*` — authenticated operator endpoints.
+
+## Tests
 
 ```bash
 pip install -r requirements-dev.txt
@@ -62,126 +96,12 @@ npm run test:ui
 npm run typecheck
 ```
 
-## Original self-hosted download manager
+GitHub Actions runs the Python suite, UI suite, and deployment-runtime import gate for every release PR and `main` push.
 
-The Docker edition below retains the original multi-tool manager for users with their own active server. It is a separate entry point (`app.main`) from the hosted converter (`app.converter`). The existing Cloudflare Containers configuration is a **paid legacy deployment option**, not the free Render path.
+## Change log
 
-## What it supports
+See [CHANGELOG.md](CHANGELOG.md). The latest entries are also shown near the bottom of the Crate web UI.
 
-- Direct HTTP/HTTPS/FTP files, torrents, and magnet links with **aria2**
-- Video and audio from supported sites with **yt-dlp** and FFmpeg
-- Image galleries with **gallery-dl**
-- Direct-file fallback with **curl**
-- Automatic tool selection, with a manual override
-- Persistent priority queue with configurable parallel downloads
-- Pause, resume, retry, cancel, and history controls
-- Progress, transfer speed, ETA, file size, and free-space reporting
-- Category folders such as Videos, Music, Pictures, Documents, and Archives
-- Multiple links in one submission
-- Optional HTTP Basic authentication
-- SQLite history and restart recovery
-- Responsive dark web UI with no frontend build step
+## Repository note
 
-## Quick start with Docker
-
-1. Copy the example settings:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Edit `.env`. At minimum, choose a strong password if the site will be reachable outside your LAN.
-
-3. Start it:
-
-   ```bash
-   docker compose up -d --build
-   ```
-
-4. Open `http://YOUR-SERVER-IP:8080`.
-
-## GitHub + Cloudflare deployment
-
-The repository includes a GitHub Actions workflow that runs the tests and publishes multi-platform images to GitHub Container Registry. A separate production Compose stack runs that image beside Cloudflare Tunnel without exposing a host port.
-
-See **[GitHub + Cloudflare deployment](docs/GITHUB_CLOUDFLARE.md)** for the complete setup. After configuring the tunnel and production `.env`, deployment is simply:
-
-```bash
-cd deploy
-docker compose up -d
-```
-
-Cloudflare hosts the public connection, while the downloader itself remains on your Docker/Proxmox machine where it has persistent storage and access to aria2, yt-dlp, and FFmpeg.
-
-The legacy `wrangler.jsonc` and `src/index.ts` configure Cloudflare Containers with R2. They require paid Cloudflare services and are not used by the Render deploy button.
-
-Files are stored in `./downloads` by default and queue/history data lives in `./data`. Change `DOWNLOAD_PATH` to an absolute host path to use a larger drive:
-
-```env
-DOWNLOAD_PATH=/mnt/media/Downloads
-```
-
-The container runs as UID/GID `1000`. Make sure that account can write to the chosen download directory:
-
-```bash
-sudo chown -R 1000:1000 /mnt/media/Downloads
-```
-
-## Configuration
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `DOWNLOAD_PATH` | `./downloads` | Host folder mounted for completed files |
-| `UDM_MAX_CONCURRENT` | `2` | Maximum simultaneous download processes |
-| `UDM_USERNAME` | empty | Optional web username |
-| `UDM_PASSWORD` | empty | Optional web password |
-| `TZ` | `America/Chicago` | Container timezone |
-| `UDM_DATA_DIR` | `/data` | Database directory inside the container |
-| `UDM_DOWNLOAD_DIR` | `/downloads` | Download root inside the container |
-
-## Cloudflare Tunnel
-
-If you expose Crate at a domain such as `downloads.dpifiles.org`, keep its built-in username and password enabled. A typical tunnel ingress points at:
-
-```yaml
-ingress:
-  - hostname: downloads.dpifiles.org
-    service: http://localhost:8080
-  - service: http_status:404
-```
-
-For stronger protection, also put the hostname behind Cloudflare Access. Do not expose an unauthenticated downloader to the public internet.
-
-## Tool selection
-
-In **Auto detect** mode, Crate routes common video sites to yt-dlp, gallery hosts to gallery-dl, torrents/magnets and ordinary file links to aria2. Choose a tool manually when a generic URL needs a particular extractor.
-
-The first run of a resumed direct download may restart if the origin server does not support byte ranges. Torrents are stopped after downloading; Crate does not seed by default.
-
-## Local development
-
-Python 3.12+, `aria2c`, `curl`, and FFmpeg are recommended.
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-dev.txt
-UDM_DATA_DIR=./data UDM_DOWNLOAD_DIR=./downloads uvicorn app.main:app --reload --port 8080
-```
-
-Run tests with `python -m pytest -q`.
-
-## API
-
-The browser uses a small JSON API that is also available for automations:
-
-- `POST /api/downloads` — add one URL
-- `POST /api/downloads/bulk` — add up to 100 URLs
-- `GET /api/downloads` — list queue and history
-- `POST /api/downloads/{id}/pause|resume|cancel`
-- `PATCH /api/downloads/{id}/priority`
-- `DELETE /api/downloads/{id}` — remove the history entry
-- `GET /api/downloads/{id}/file` — retrieve a completed single file
-- `GET /api/system` — tools, limits, and storage information
-
-Use only downloads you are legally allowed to access, and follow the terms of each source site.
+The repository still contains older Docker/Cloudflare prototype files for compatibility and reference, but the supported production application is the Proxmox-hosted `app.serve` runtime described above.

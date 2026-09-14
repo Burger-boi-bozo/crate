@@ -14,7 +14,7 @@ w.fetch = async (url, options = {}) => {
   calls.push({url, options});
   let data = {};
   if (url === '/api/session') data = {authenticated: true, hosting: 'proxmox', workers: 2};
-  else if (url === '/api/version') data = {version: '5.0.0', build: 'abcdef123456', label: 'v5.0.0 · abcdef123456'};
+  else if (url === '/api/version') data = {version: '5.1.0', build: 'abcdef123456', label: 'v5.1.0 · abcdef123456'};
   else if (url === '/api/preview') data = {title: 'Preview title', creator: 'Creator', duration: 125,
     source: 'Youtube', thumbnail: 'data:image/png;base64,AA=='};
   else if (url === '/api/music/lookup') data = {title: 'Song', artist: 'Artist', provider: 'Spotify',
@@ -63,7 +63,7 @@ w.eval(readFileSync(path.join(base, 'version.js'), 'utf8'));
   input.value = 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC';
   await doc.querySelector('#convert-form').onsubmit({preventDefault() {}});
   assert.match(doc.querySelector('#music-results').textContent, /not files from Spotify/);
-  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v5.0.0 · abcdef123456');
+  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v5.1.0 · abcdef123456');
   assert.equal(calls.some(call => call.url === '/api/status'), false);
   console.log('UI passed: preview, private telemetry, progress, controls, version, quality, and music lookup.');
   w.close();

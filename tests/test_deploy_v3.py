@@ -17,3 +17,13 @@ def test_auto_updater_still_requires_successful_push_workflow():
     assert 'run.get("event") == "push"' in script
     assert 'run.get("conclusion") == "success"' in script
     assert 'run.get("head_sha") == revision' in script
+
+
+def test_v51_defaults_admin_password_once_and_preserves_future_changes():
+    install = Path("scripts/proxmox-guest.sh").read_text()
+    update = Path("scripts/proxmox-update-guest.sh").read_text()
+    assert 'crate_admin_password="password"' in install
+    assert '.v51-admin-default-applied' in install
+    assert 'password="password"' in update
+    assert '[[ ! -f "$marker" ]]' in update
+    assert 'else\n    password="$(sed -n' in update
