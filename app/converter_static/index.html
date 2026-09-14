@@ -7,12 +7,12 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=3">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=3">
-  <script src="/assets/app.js?v=3" defer></script>
-  <script src="/assets/enhancements.js?v=3" defer></script>
-  <script src="/assets/version.js?v=2" defer></script>
-  <script src="/assets/status.js?v=3" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=4">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=4">
+  <script src="/assets/app.js?v=4" defer></script>
+  <script src="/assets/enhancements.js?v=4" defer></script>
+  <script src="/assets/preview.js?v=4" defer></script>
+  <script src="/assets/version.js?v=4" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -31,6 +31,7 @@
         <form id="convert-form">
           <label for="media-url">Paste your link</label>
           <div class="url-field"><span aria-hidden="true">↗</span><input id="media-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="2048" placeholder="https://www.youtube.com/watch?v=…"></div>
+          <section id="link-preview" class="link-preview" aria-live="polite" hidden></section>
           <fieldset><legend>Make it a…</legend><div class="format-options">
             <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 or original MKV</small></span><span class="radio-mark"></span></label>
             <label class="format-option"><input type="radio" name="format" value="mp3"><span class="format-icon" aria-hidden="true">♫</span><span><strong>Audio</strong><small>MP3 or original audio</small></span><span class="radio-mark"></span></label>
@@ -44,15 +45,15 @@
         <p id="form-error" class="error" role="alert" hidden></p>
       </section>
       <div class="supported"><span>TRY PUBLIC MEDIA LINKS FROM</span><p>YouTube <i>·</i> Vimeo <i>·</i> TikTok <i>·</i> Instagram <i>·</i> SoundCloud <i>·</i> Spotify &amp; Apple Music song lookup</p><small>Also supports many podcast, social video, and direct media links. Music links let you choose a public recording. Other sites download directly when supported.</small></div>
-      <section id="server-status" class="server-status" hidden aria-label="Server status"><h3>Server status</h3><div class="status-grid"><div class="status-item"><small>State</small><strong id="status-state">—</strong></div><div class="status-item"><small>Workers</small><strong id="status-workers">—</strong></div><div class="status-item"><small>Active</small><strong id="status-active">—</strong></div><div class="status-item"><small>Storage</small><strong id="status-storage">—</strong></div><div class="status-item"><small>Build</small><strong id="status-build">—</strong></div></div></section>
       <section class="downloads-section" aria-labelledby="downloads-heading">
         <div class="section-heading"><div><span class="step-number">02 / COLLECT</span><h2 id="downloads-heading">Your downloads <span id="job-count">0</span></h2></div><button id="clear-history" class="text-button" hidden>Clear history</button></div>
         <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
-        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files. Available space depends on your server’s disk.</p>
+        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
+        <p><strong>Preview before downloading.</strong> Crate checks the public page first and shows the title, creator, duration, and thumbnail when the source provides them.</p>
         <p><strong>Your server, your downloads.</strong> Downloads run in parallel, can be paused or resumed, and interrupted jobs are safely requeued after a restart.</p>
         <p><strong>Pick your quality.</strong> Choose the maximum source quality or a smaller video resolution. MP3 goes up to 320 kbps; original audio and video preserve the source codecs without re-encoding. Sources are never upscaled.</p>
         <p><strong>Music links.</strong> Spotify and Apple Music song links find public YouTube recordings for you to check and choose. They do not export subscription streams or guarantee an identical recording.</p>
@@ -60,7 +61,7 @@
         <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
       </div></details>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v3.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v4.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
 </body>
 </html>

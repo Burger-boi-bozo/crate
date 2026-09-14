@@ -18,6 +18,18 @@ set_build_ref() {
   sed -i '/^CRATE_BUILD_SHA=/d' /etc/crate/environment
   printf 'CRATE_BUILD_SHA=%s\n' "$revision" >> /etc/crate/environment
 }
+ensure_admin_password() {
+  local password
+  install -d -m 700 /etc/crate
+  if ! grep -q '^CRATE_ADMIN_PASSWORD=' /etc/crate/environment; then
+    password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+    printf 'CRATE_ADMIN_PASSWORD=%s\n' "$password" >> /etc/crate/environment
+  else
+    password="$(sed -n 's/^CRATE_ADMIN_PASSWORD=//p' /etc/crate/environment | head -1)"
+  fi
+  printf '%s\n' "$password" > /etc/crate/admin-password
+  chmod 600 /etc/crate/admin-password
+}
 rollback() {
   trap - ERR
   echo "Update failed; restoring the previous app revision."
@@ -31,6 +43,7 @@ git checkout --detach "$ref"
 .venv/bin/pip install -r requirements.txt
 .venv/bin/python scripts/check_runtime.py
 set_build_ref "$ref"
+ensure_admin_password
 mkdir -p /etc/systemd/system/crate.service.d
 cat > /etc/systemd/system/crate.service.d/download-resources.conf <<'UNIT'
 [Service]
@@ -47,9 +60,9 @@ for attempt in range(45):
         with urllib.request.urlopen("http://127.0.0.1:8080/api/health", timeout=2) as response:
             health = json.load(response)
         assert health["status"] == "ok"
-        assert health["runtime"] == "crate-v3"
+        assert health["runtime"] == "crate-v4"
         assert health["build"] == revision[:12]
-        print("Verified Crate v3 health at", revision[:12])
+        print("Verified Crate v4 health at", revision[:12])
         break
     except Exception:
         if attempt == 44:
