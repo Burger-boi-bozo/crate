@@ -53,7 +53,7 @@ def install(app, config, owner):
             raise HTTPException(502, "The source returned an unreadable preview response.")
         if process.returncode or not data.get("ok"):
             raise HTTPException(422, data.get("error", "This link could not be previewed."))
-        result = {name: data.get(name) for name in ("url", "title", "creator", "duration", "source", "thumbnail")}
+        result = {name: data.get(name) for name in ("url", "title", "creator", "duration", "source", "thumbnail", "max_height", "estimates", "recommendation")}
         cache[key] = (time.time(), result)
         if len(cache) > 200:
             oldest = min(cache, key=lambda item: cache[item][0])

@@ -60,9 +60,9 @@ for attempt in range(45):
         with urllib.request.urlopen("http://127.0.0.1:8080/api/health", timeout=2) as response:
             health = json.load(response)
         assert health["status"] == "ok"
-        assert health["runtime"] == "crate-v4"
+        assert health["runtime"] == "crate-v5"
         assert health["build"] == revision[:12]
-        print("Verified Crate v4 health at", revision[:12])
+        print("Verified Crate v5 health at", revision[:12])
         break
     except Exception:
         if attempt == 44:

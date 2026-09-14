@@ -1,12 +1,14 @@
 /* No third-party scripts. Media titles and errors are inserted as text only. */
 const $ = selector => document.querySelector(selector);
 const HISTORY_KEY = 'crate-converter-history-v1';
-const activeStates = new Set(['queued', 'downloading', 'converting']);
+const activeStates = new Set(['queued', 'downloading', 'converting', 'paused']);
 let sessionReady = false;
 let filter = 'all';
 let jobs = [];
 let timer;
 let syncing = false;
+let eventStream = null;
+let sseLive = false;
 let history = [];
 try { history = JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch { /* storage may be disabled */ }
 if (!Array.isArray(history)) history = [];
@@ -130,8 +132,24 @@ async function sync() {
   } finally {
     syncing = false;
     clearTimeout(timer);
-    if (sessionReady && jobs.some(x => activeStates.has(x.status))) timer = setTimeout(sync, 2500);
+    if (!sseLive && sessionReady && jobs.some(x => activeStates.has(x.status))) timer = setTimeout(sync, 2500);
   }
+}
+
+function startEvents() {
+  if (eventStream) eventStream.close();
+  eventStream = new EventSource('/api/events/stream');
+  eventStream.addEventListener('jobs', event => {
+    try {
+      jobs = JSON.parse(event.data); sseLive = true;
+      const combined = new Map(history.map(x => [x.id, x]));
+      for (const job of jobs) combined.set(job.id, {id: job.id, url: job.url, title: job.title, format: job.format, quality: job.quality, size: job.size, created_at: job.created_at});
+      history = [...combined.values()].sort((a, b) => b.created_at - a.created_at);
+      saveHistory(); renderJobs(); $('#notice').hidden = true;
+    } catch { /* malformed event: keep polling fallback available */ }
+  });
+  eventStream.onopen = () => { sseLive = true; clearTimeout(timer); };
+  eventStream.onerror = () => { sseLive = false; if (sessionReady) sync(); };
 }
 
 async function init() {
@@ -142,6 +160,7 @@ async function init() {
     $('#limits').textContent = 'No duration, file-size, or daily download caps';
     $('#notice').hidden = true;
     await sync();
+    startEvents();
     renderJobs();
   } catch (error) {
     $('#notice').textContent = error.message;
@@ -155,29 +174,34 @@ $('#convert-form').onsubmit = async event => {
   button.disabled = true;
   showError('');
   try {
-    const url = $('#media-url').value.trim();
-    const parsed = new URL(url);
-    if (['open.spotify.com', 'spotify.link'].includes(parsed.hostname) || (parsed.hostname === 'music.apple.com' && !parsed.pathname.includes('/post/'))) {
-      $('#music-results').hidden = false;
-      $('#music-results').textContent = 'Finding public recordings…';
-      try {
-        const result = await api('/api/music/lookup', {method: 'POST', body: JSON.stringify({url})});
-        renderMatches(result);
-      } catch (error) {
-        $('#music-results').hidden = true;
-        throw error;
-      }
-      return;
-    }
-    const mode = $('input[name="format"]:checked').value;
+    const urls = $('#media-url').value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
+    if (!urls.length) throw new Error('Paste at least one public media URL.');
+    for (const url of urls) new URL(url);
+    const mode = $('input[name=\"format\"]:checked').value;
     const quality = $('#quality').value;
     const format = quality === 'original' ? (mode === 'mp3' ? 'mka' : 'mkv') : mode;
-    const job = await api('/api/jobs', {method: 'POST', body: JSON.stringify({url, format, quality: quality === 'original' ? 'best' : quality})});
+    const normalizedQuality = quality === 'original' ? 'best' : quality;
+    if (urls.length === 1) {
+      const url = urls[0];
+      const parsed = new URL(url);
+      if (['open.spotify.com', 'spotify.link'].includes(parsed.hostname) || (parsed.hostname === 'music.apple.com' && !parsed.pathname.includes('/post/'))) {
+        $('#music-results').hidden = false;
+        $('#music-results').textContent = 'Finding public recordings…';
+        try { renderMatches(await api('/api/music/lookup', {method: 'POST', body: JSON.stringify({url})})); }
+        catch (error) { $('#music-results').hidden = true; throw error; }
+        return;
+      }
+      jobs.push(await api('/api/jobs', {method: 'POST', body: JSON.stringify({url, format, quality: normalizedQuality})}));
+    } else {
+      const batch = await api('/api/batches', {method: 'POST', body: JSON.stringify({urls, format, quality: normalizedQuality})});
+      for (const job of batch.jobs) if (!jobs.some(existing => existing.id === job.id)) jobs.push(job);
+      $('#notice').textContent = `Batch started · ${batch.jobs.length} jobs`;
+      $('#notice').hidden = false;
+    }
     $('#media-url').value = '';
-    jobs.push(job);
     renderJobs();
     await sync();
-  } catch (error) { showError(error.message); }
+  } catch (error) { showError(error.message === 'Invalid URL' ? 'Every batch line must be a valid URL.' : error.message); }
   finally { button.disabled = false; }
 };
 

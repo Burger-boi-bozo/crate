@@ -116,7 +116,7 @@ def api(path, body=None):
 for _ in range(30):
     try:
         health = api('/api/health')
-        assert health['status'] == 'ok' and health['runtime'] == 'crate-v4' and health['build'] == expected
+        assert health['status'] == 'ok' and health['runtime'] == 'crate-v5' and health['build'] == expected
         break
     except Exception: time.sleep(2)
 else: raise RuntimeError('Crate did not become healthy')

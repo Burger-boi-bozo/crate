@@ -6,9 +6,9 @@
   <meta name="robots" content="noindex,nofollow">
   <title>Crate — Admin</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=4">
-  <link rel="stylesheet" href="/assets/admin.css?v=4">
-  <script src="/assets/admin.js?v=4" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=5">
+  <link rel="stylesheet" href="/assets/admin.css?v=5">
+  <script src="/assets/admin.js?v=5" defer></script>
 </head>
 <body>
   <div class="shell admin-shell">
@@ -24,11 +24,12 @@
       <section id="admin-dashboard" hidden>
         <div class="admin-heading"><div><span class="eyebrow"><span class="tiny-dot"></span> SERVER OVERVIEW</span><h1>Crate control room.</h1></div><button id="admin-logout" class="text-button">Sign out</button></div>
         <div id="admin-cards" class="admin-cards"></div>
-        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">01 / SOURCES</span><h2>Provider health</h2></div><span id="admin-updated" class="muted"></span></div><div id="provider-list" class="provider-list"></div></section>
-        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">02 / QUEUE</span><h2>Recent jobs</h2></div><select id="job-filter"><option value="all">All jobs</option><option value="active">Active</option><option value="failed">Failed</option><option value="ready">Ready</option></select></div><div id="admin-jobs" class="admin-jobs"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">01 / OPERATIONS</span><h2>Operations</h2></div><span id="maintenance-state" class="muted"></span></div><div class="admin-job-actions"><button id="maintenance-toggle" class="text-button">Enable maintenance</button><button id="cleanup-now" class="text-button">Clean expired/orphan files</button><button id="retry-failed" class="text-button">Retry failed</button><button id="delete-finished" class="text-button">Delete finished</button></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">02 / SOURCES</span><h2>Provider health</h2></div><span id="admin-updated" class="muted"></span></div><div id="provider-list" class="provider-list"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">03 / QUEUE</span><h2>Recent jobs</h2></div><select id="job-filter"><option value="all">All jobs</option><option value="active">Active</option><option value="failed">Failed</option><option value="ready">Ready</option></select></div><div id="admin-jobs" class="admin-jobs"></div></section>
       </section>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="admin-version" class="footer-version">v4</span></div><span>Operator view · private telemetry</span><a href="/">Public app ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="admin-version" class="footer-version">v5</span></div><span>Operator view · private telemetry</span><a href="/">Public app ↗</a></footer>
   </div>
 </body>
 </html>

@@ -8,6 +8,7 @@
   let controller = null;
   let sequence = 0;
 
+  const links = () => input.value.split(/\r?\n/).map(value => value.trim()).filter(Boolean);
   const clear = () => { panel.hidden = true; panel.replaceChildren(); };
   const duration = seconds => {
     if (!Number.isFinite(seconds) || seconds <= 0) return '';
@@ -16,23 +17,38 @@
       ? `${Math.floor(value / 3600)}:${String(Math.floor(value % 3600 / 60)).padStart(2, '0')}:${String(value % 60).padStart(2, '0')}`
       : `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
   };
+  const size = bytes => {
+    if (!Number.isFinite(bytes) || bytes <= 0) return '';
+    return bytes >= 1073741824 ? `${(bytes / 1073741824).toFixed(1)} GB` : `${(bytes / 1048576).toFixed(1)} MB`;
+  };
   function render(data) {
     panel.replaceChildren();
     if (data.thumbnail) {
       const image = document.createElement('img');
-      image.src = data.thumbnail; image.alt = ''; image.loading = 'eager';
-      panel.append(image);
+      image.src = data.thumbnail; image.alt = ''; image.loading = 'eager'; panel.append(image);
     } else {
       const placeholder = document.createElement('div');
-      placeholder.className = 'preview-placeholder'; placeholder.textContent = '▷';
-      panel.append(placeholder);
+      placeholder.className = 'preview-placeholder'; placeholder.textContent = '▷'; panel.append(placeholder);
     }
     const copy = document.createElement('div'); copy.className = 'preview-copy';
     const source = document.createElement('p'); source.className = 'preview-source'; source.textContent = data.source || 'Media';
     const title = document.createElement('p'); title.className = 'preview-title'; title.textContent = data.title || 'Media clip';
     const meta = document.createElement('p'); meta.className = 'preview-meta';
-    meta.textContent = [data.creator, duration(data.duration)].filter(Boolean).join(' · ');
-    copy.append(source, title, meta); panel.append(copy); panel.hidden = false;
+    meta.textContent = [data.creator, duration(data.duration), data.max_height ? `up to ${data.max_height}p` : ''].filter(Boolean).join(' · ');
+    copy.append(source, title, meta);
+    const rec = data.recommendation;
+    if (rec) {
+      const line = document.createElement('p'); line.className = 'preview-recommendation';
+      line.textContent = `Recommended: ${rec.quality === 'best' ? 'best available' : `${rec.quality}p`} ${(rec.format || 'mp4').toUpperCase()}${size(rec.estimated_size) ? ` · about ${size(rec.estimated_size)}` : ''}`;
+      copy.append(line);
+    }
+    panel.append(copy); panel.hidden = false;
+  }
+  function batchPreview(values) {
+    panel.replaceChildren();
+    const text = document.createElement('p'); text.className = 'preview-loading';
+    text.textContent = `${values.length} links ready for a batch. Crate will queue each link separately.`;
+    panel.append(text); panel.hidden = false;
   }
   function loading() {
     panel.replaceChildren();
@@ -46,12 +62,13 @@
     panel.append(text); panel.hidden = false;
   }
   async function lookup() {
-    const url = input.value.trim();
-    if (!url) { clear(); return; }
+    const values = links();
+    if (!values.length) { clear(); return; }
+    if (values.length > 1) { controller?.abort(); batchPreview(values); return; }
+    const url = values[0];
     try { new URL(url); } catch { clear(); return; }
     const current = ++sequence;
-    controller?.abort(); controller = new AbortController();
-    loading();
+    controller?.abort(); controller = new AbortController(); loading();
     try {
       const data = await api('/api/preview', {method: 'POST', body: JSON.stringify({url}), signal: controller.signal});
       if (current === sequence) render(data);
