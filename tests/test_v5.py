@@ -80,3 +80,12 @@ def test_v5_static_ui_wires_sse_and_batch():
     assert "EventSource('/api/events/stream')" in app_js
     assert "'/api/batches'" in app_js
     assert "up to 20 URLs on separate lines" in html
+
+
+def test_v5_preview_low_resolution_recommends_valid_quality():
+    profile = source_profile({
+        "duration": 20,
+        "formats": [{"height": 240, "vcodec": "avc1", "acodec": "mp4a", "tbr": 400}],
+    })
+    assert profile["max_height"] == 240
+    assert profile["recommendation"]["quality"] == "best"

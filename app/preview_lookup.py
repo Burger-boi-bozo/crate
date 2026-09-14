@@ -58,17 +58,18 @@ def source_profile(info: dict) -> dict:
             size += audio_bytes
         return size
 
-    recommended_height = min(max_height or 1080, 1080)
-    if recommended_height >= 1080:
-        recommended_height = 1080
-    elif recommended_height >= 720:
-        recommended_height = 720
-    elif recommended_height >= 480:
-        recommended_height = 480
+    if max_height >= 1080:
+        recommended_quality, recommended_cap = "1080", 1080
+    elif max_height >= 720:
+        recommended_quality, recommended_cap = "720", 720
+    elif max_height >= 480:
+        recommended_quality, recommended_cap = "480", 480
+    else:
+        recommended_quality, recommended_cap = "best", None
     recommendation = {
         "format": "mp4",
-        "quality": str(recommended_height) if max_height else "best",
-        "estimated_size": video_estimate(recommended_height if max_height else None),
+        "quality": recommended_quality,
+        "estimated_size": video_estimate(recommended_cap),
         "reason": "Balanced compatibility, quality, and processing cost.",
     }
     estimates = {
