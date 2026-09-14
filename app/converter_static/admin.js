@@ -1,6 +1,7 @@
 const $ = selector => document.querySelector(selector);
 let adminTimer = null;
 let adminJobs = [];
+let adminStatus = null;
 
 async function adminApi(path, options = {}) {
   const response = await fetch(path, {...options, headers: {'X-Crate-Request': '1', ...(options.body ? {'Content-Type': 'application/json'} : {}), ...options.headers}});
@@ -29,6 +30,7 @@ function card(label, value) {
   node.append(small, strong); return node;
 }
 function renderStatus(status) {
+  adminStatus = status;
   const diskPct = status.disk?.total ? Math.round(status.disk.used / status.disk.total * 100) : 0;
   const memUsed = status.memory?.total && status.memory?.available ? status.memory.total - status.memory.available : null;
   $('#admin-cards').replaceChildren(
@@ -36,18 +38,21 @@ function renderStatus(status) {
     card('Workers', `${status.workers} · ${status.active} active`), card('Queue', `${status.pending} pending`),
     card('Disk', `${bytes(status.disk?.free)} free · ${diskPct}% used`),
     card('Memory', memUsed ? `${bytes(memUsed)} / ${bytes(status.memory.total)}` : '—'),
-    card('Load', status.load?.length ? status.load.join(' · ') : '—'), card('Failures · 24h', String(status.recent_failures ?? 0))
+    card('Load', status.load?.length ? status.load.join(' · ') : '—'), card('24h success', status.metrics ? `${status.metrics.completed} ready · ${status.metrics.failed} failed` : '—'),
+    card('Output · 24h', bytes(status.metrics?.output_bytes)), card('Scheduler', `${status.scheduler?.heavy_claimed ?? 0}/${status.scheduler?.heavy_limit ?? 0} heavy`)
   );
   const providers = $('#provider-list'); providers.replaceChildren();
   for (const item of status.providers || []) {
     const row = document.createElement('div'); row.className = 'provider-row';
-    for (const value of [item.host, `${item.total} jobs`, `${item.ready} ready`, `${item.failed} failed`, `${item.blocked} blocked`]) {
+    for (const value of [item.host, item.state || 'unknown', item.success_rate == null ? '—' : `${Math.round(item.success_rate * 100)}% success`, `${item.ready} ready`, `${item.failed} failed`, `${item.blocked} blocked`]) {
       const cell = document.createElement(value === item.host ? 'strong' : 'span'); cell.textContent = value; row.append(cell);
     }
     providers.append(row);
   }
   if (!(status.providers || []).length) providers.textContent = 'No provider history yet.';
-  $('#admin-version').textContent = status.label || 'v4';
+  $('#maintenance-state').textContent = status.scheduler?.maintenance ? 'Maintenance enabled · active jobs may finish' : 'Accepting new jobs';
+  $('#maintenance-toggle').textContent = status.scheduler?.maintenance ? 'Disable maintenance' : 'Enable maintenance';
+  $('#admin-version').textContent = status.label || 'v5';
   $('#admin-updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 function jobMatches(job) {
@@ -108,3 +113,33 @@ $('#admin-logout').onclick = async () => { await adminApi('/api/admin/session', 
 $('#job-filter').onchange = renderJobs;
 window.addEventListener('focus', refreshAdmin);
 refreshAdmin();
+
+$('#maintenance-toggle').onclick = async () => {
+  const button = $('#maintenance-toggle'); button.disabled = true;
+  try {
+    await adminApi('/api/admin/maintenance', {method: 'POST', body: JSON.stringify({enabled: !adminStatus?.scheduler?.maintenance})});
+    await refreshAdmin();
+  } catch (error) { alert(error.message); }
+  finally { button.disabled = false; }
+};
+$('#cleanup-now').onclick = async () => {
+  const button = $('#cleanup-now'); button.disabled = true;
+  try {
+    const result = await adminApi('/api/admin/cleanup', {method: 'POST'});
+    alert(`Cleanup complete: ${result.expired_or_deleted || 0} expired/deleted · ${result.orphan_directories || 0} orphan folders.`);
+    await refreshAdmin();
+  } catch (error) { alert(error.message); }
+  finally { button.disabled = false; }
+};
+
+async function bulkAction(action, ids, button) {
+  if (!ids.length) return;
+  button.disabled = true;
+  try {
+    await adminApi('/api/admin/bulk', {method: 'POST', body: JSON.stringify({action, ids})});
+    await refreshAdmin();
+  } catch (error) { alert(error.message); }
+  finally { button.disabled = false; }
+}
+$('#retry-failed').onclick = event => bulkAction('retry', adminJobs.filter(job => job.status === 'failed').map(job => job.id), event.currentTarget);
+$('#delete-finished').onclick = event => bulkAction('delete', adminJobs.filter(job => !['queued', 'downloading', 'converting', 'paused'].includes(job.status)).map(job => job.id), event.currentTarget);

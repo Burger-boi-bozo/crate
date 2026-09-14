@@ -1,9 +1,9 @@
 from pathlib import Path
 
 
-def test_updater_verifies_exact_v4_build_and_provisions_admin_password():
+def test_updater_verifies_exact_v5_build_and_provisions_admin_password():
     script = Path("scripts/proxmox-update-guest.sh").read_text()
-    assert 'health["runtime"] == "crate-v4"' in script
+    assert 'health["runtime"] == "crate-v5"' in script
     assert 'health["build"] == revision[:12]' in script
     assert "pip install -r requirements.txt" in script
     assert "OnUnitActiveSec=2min" in script

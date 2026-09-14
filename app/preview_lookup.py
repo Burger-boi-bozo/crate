@@ -1,4 +1,4 @@
-"""Resolve public media metadata and a small thumbnail without downloading the media."""
+"""Resolve public media metadata, thumbnail, and conservative output estimates."""
 from __future__ import annotations
 
 import base64
@@ -29,6 +29,58 @@ def thumbnail_data(downloader, url: str | None) -> str | None:
     except Exception:
         return None
 
+def estimated_bytes(fmt: dict, duration: int) -> int | None:
+    value = fmt.get("filesize") or fmt.get("filesize_approx")
+    if value:
+        return max(0, int(value))
+    bitrate = fmt.get("tbr")
+    if duration and bitrate:
+        return max(0, int(float(bitrate) * 1000 / 8 * duration))
+    return None
+
+
+def source_profile(info: dict) -> dict:
+    duration = int(info.get("duration") or 0)
+    formats = [item for item in info.get("formats") or [] if isinstance(item, dict)]
+    videos = [item for item in formats if item.get("vcodec") not in {None, "none"}]
+    audios = [item for item in formats if item.get("acodec") not in {None, "none"} and item.get("vcodec") in {None, "none"}]
+    max_height = max((int(item.get("height") or 0) for item in videos), default=int(info.get("height") or 0))
+    best_audio = max(audios, key=lambda item: float(item.get("abr") or item.get("tbr") or 0), default=None)
+    audio_bytes = estimated_bytes(best_audio, duration) if best_audio else None
+
+    def video_estimate(cap: int | None):
+        candidates = videos if cap is None else [item for item in videos if int(item.get("height") or 0) <= cap]
+        if not candidates:
+            return None
+        candidate = max(candidates, key=lambda item: (int(item.get("height") or 0), float(item.get("tbr") or 0)))
+        size = estimated_bytes(candidate, duration)
+        if size is not None and candidate.get("acodec") in {None, "none"} and audio_bytes:
+            size += audio_bytes
+        return size
+
+    if max_height >= 1080:
+        recommended_quality, recommended_cap = "1080", 1080
+    elif max_height >= 720:
+        recommended_quality, recommended_cap = "720", 720
+    elif max_height >= 480:
+        recommended_quality, recommended_cap = "480", 480
+    else:
+        recommended_quality, recommended_cap = "best", None
+    recommendation = {
+        "format": "mp4",
+        "quality": recommended_quality,
+        "estimated_size": video_estimate(recommended_cap),
+        "reason": "Balanced compatibility, quality, and processing cost.",
+    }
+    estimates = {
+        "best_video": video_estimate(None),
+        "video_1080": video_estimate(1080),
+        "video_720": video_estimate(720),
+        "mp3_320": int(duration * 320000 / 8) if duration else None,
+        "mp3_192": int(duration * 192000 / 8) if duration else None,
+    }
+    return {"max_height": max_height or None, "estimates": estimates, "recommendation": recommendation}
+
 
 def lookup(url: str) -> dict:
     url = validate_url(url)
@@ -53,6 +105,7 @@ def lookup(url: str) -> dict:
             "duration": int(info.get("duration") or 0),
             "source": str(info.get("extractor_key") or info.get("extractor") or "Media")[:80],
             "thumbnail": thumbnail_data(downloader, info.get("thumbnail")),
+            **source_profile(info),
         }
 
 

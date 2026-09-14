@@ -7,12 +7,12 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=4">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=4">
-  <script src="/assets/app.js?v=4" defer></script>
-  <script src="/assets/enhancements.js?v=4" defer></script>
-  <script src="/assets/preview.js?v=4" defer></script>
-  <script src="/assets/version.js?v=4" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=5">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=5">
+  <script src="/assets/app.js?v=5" defer></script>
+  <script src="/assets/enhancements.js?v=5" defer></script>
+  <script src="/assets/preview.js?v=5" defer></script>
+  <script src="/assets/version.js?v=5" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -29,8 +29,8 @@
       <section class="converter-card" aria-label="Convert a media link">
         <div class="card-header"><span class="step-number">01 / CONVERT</span><span class="card-note">No account or code needed</span></div>
         <form id="convert-form">
-          <label for="media-url">Paste your link</label>
-          <div class="url-field"><span aria-hidden="true">↗</span><input id="media-url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="2048" placeholder="https://www.youtube.com/watch?v=…"></div>
+          <label for="media-url">Paste your link or a batch</label>
+          <div class="url-field batch-url-field"><span aria-hidden="true">↗</span><textarea id="media-url" name="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="42000" rows="2" placeholder="One public media URL, or paste up to 20 URLs on separate lines"></textarea></div>
           <section id="link-preview" class="link-preview" aria-live="polite" hidden></section>
           <fieldset><legend>Make it a…</legend><div class="format-options">
             <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 or original MKV</small></span><span class="radio-mark"></span></label>
@@ -38,7 +38,7 @@
           </div></fieldset>
           <div class="quality-field"><label for="quality">Choose quality</label><select id="quality" name="quality" aria-describedby="quality-note"></select><p id="quality-note" class="quality-note"></p></div>
           <button id="convert-button" type="submit" class="primary convert-button" disabled>Create download <span aria-hidden="true">↓</span></button>
-          <p class="limits" id="limits">No duration, file-size, or daily download caps</p>
+          <p class="limits" id="limits">Single links or batches of up to 20 · no duration, file-size, or daily download caps</p>
         </form>
         <p id="notice" class="notice" role="status" aria-live="polite">Connecting…</p>
         <section id="music-results" class="music-results" aria-live="polite" hidden></section>
@@ -61,7 +61,7 @@
         <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
       </div></details>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v4.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v5.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
 </body>
 </html>

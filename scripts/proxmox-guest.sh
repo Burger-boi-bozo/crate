@@ -116,7 +116,7 @@ def api(path, body=None):
 for _ in range(30):
     try:
         health = api('/api/health')
-        assert health['status'] == 'ok' and health['runtime'] == 'crate-v4' and health['build'] == expected
+        assert health['status'] == 'ok' and health['runtime'] == 'crate-v5' and health['build'] == expected
         break
     except Exception: time.sleep(2)
 else: raise RuntimeError('Crate did not become healthy')
@@ -131,6 +131,6 @@ else: raise RuntimeError('Media smoke test timed out')
 with client.open('http://127.0.0.1:8080/api/jobs/' + job['id'] + '/file', timeout=30) as response:
     content = response.read(2 * 1024 * 1024)
     assert len(content) == job['size'] and b'ftyp' in content[:32]
-print('Crate v4 public-media download verified:', job['width'], 'x', job['height'])
+print('Crate v5 public-media download verified:', job['width'], 'x', job['height'])
 PY
 echo ready > /var/lib/crate/bootstrap-status
