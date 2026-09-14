@@ -79,4 +79,4 @@ def test_v5_static_ui_wires_sse_and_batch():
     html = Path("app/converter_static/index.html").read_text()
     assert "EventSource('/api/events/stream')" in app_js
     assert "'/api/batches'" in app_js
-    assert "one per line" in html
+    assert "up to 20 URLs on separate lines" in html
