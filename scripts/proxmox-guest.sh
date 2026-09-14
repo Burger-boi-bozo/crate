@@ -46,6 +46,7 @@ CRATE_DOWNLOAD_RETRIES=4
 CRATE_FFMPEG_THREADS=0
 CRATE_STALL_TIMEOUT=300
 CRATE_PREVIEW_TIMEOUT=20
+CRATE_TTL=86400
 EOF
 chmod 600 /etc/crate/environment
 printf '%s\n' "$crate_admin_password" > /etc/crate/admin-password
