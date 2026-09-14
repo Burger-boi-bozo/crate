@@ -7,12 +7,12 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=5">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=5">
-  <script src="/assets/app.js?v=5" defer></script>
-  <script src="/assets/enhancements.js?v=5" defer></script>
-  <script src="/assets/preview.js?v=5" defer></script>
-  <script src="/assets/version.js?v=5" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=51">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=51">
+  <script src="/assets/app.js?v=51" defer></script>
+  <script src="/assets/enhancements.js?v=51" defer></script>
+  <script src="/assets/preview.js?v=51" defer></script>
+  <script src="/assets/version.js?v=51" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -50,7 +50,7 @@
         <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
-        <p class="storage-note">Files and queue history stay on your server until you delete them. “Clear history” also deletes completed files.</p>
+        <p class="storage-note">Completed files are kept for 24 hours, then removed automatically. “Clear history” removes them sooner.</p>
       </section>
       <details class="help"><summary>A few useful things to know <span aria-hidden="true">+</span></summary><div>
         <p><strong>Preview before downloading.</strong> Crate checks the public page first and shows the title, creator, duration, and thumbnail when the source provides them.</p>
@@ -60,8 +60,15 @@
         <p><strong>Source availability.</strong> Some sites require login or reject automated requests. Crate identifies those provider blocks separately from conversion failures.</p>
         <p>Only download media you own or have permission to save. Follow the source site’s rules.</p>
       </div></details>
+      <section class="changelog" aria-labelledby="changelog-heading">
+        <span class="step-number">CHANGE LOG</span>
+        <h2 id="changelog-heading">Change log</h2>
+        <div class="changelog-entry"><div><strong>v5.1.0</strong><span>Sep 2026</span></div><p>Fixed the paste-field arrow, added 24-hour automatic cleanup, simplified admin access, and refreshed the project documentation.</p></div>
+        <div class="changelog-entry"><div><strong>v5.0.0</strong><span>Sep 2026</span></div><p>Added batch downloads, live SSE progress, smarter scheduling, provider health, admin controls, and preview recommendations.</p></div>
+        <a class="changelog-link" href="https://github.com/Burger-boi-bozo/crate/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Full change log ↗</a>
+      </section>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v5.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v5.1.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
 </body>
 </html>

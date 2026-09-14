@@ -31,7 +31,7 @@ python3 -m venv /opt/crate/.venv
 /opt/crate/.venv/bin/python /opt/crate/scripts/check_runtime.py
 install -d -m 700 /etc/crate
 crate_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
-crate_admin_password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+crate_admin_password="password"
 cat > /etc/crate/environment <<EOF
 PORT=8080
 CRATE_DATA_DIR=/var/lib/crate/media
@@ -51,6 +51,8 @@ EOF
 chmod 600 /etc/crate/environment
 printf '%s\n' "$crate_admin_password" > /etc/crate/admin-password
 chmod 600 /etc/crate/admin-password
+touch /etc/crate/.v51-admin-default-applied
+chmod 600 /etc/crate/.v51-admin-default-applied
 cat > /etc/systemd/system/crate.service <<'UNIT'
 [Unit]
 Description=Crate media converter

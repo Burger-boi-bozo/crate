@@ -20,9 +20,16 @@ set_build_ref() {
 }
 ensure_admin_password() {
   local password
+  local marker=/etc/crate/.v51-admin-default-applied
   install -d -m 700 /etc/crate
-  if ! grep -q '^CRATE_ADMIN_PASSWORD=' /etc/crate/environment; then
-    password="$(python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+  if [[ ! -f "$marker" ]]; then
+    password="password"
+    sed -i '/^CRATE_ADMIN_PASSWORD=/d' /etc/crate/environment
+    printf 'CRATE_ADMIN_PASSWORD=%s\n' "$password" >> /etc/crate/environment
+    touch "$marker"
+    chmod 600 "$marker"
+  elif ! grep -q '^CRATE_ADMIN_PASSWORD=' /etc/crate/environment; then
+    password="password"
     printf 'CRATE_ADMIN_PASSWORD=%s\n' "$password" >> /etc/crate/environment
   else
     password="$(sed -n 's/^CRATE_ADMIN_PASSWORD=//p' /etc/crate/environment | head -1)"

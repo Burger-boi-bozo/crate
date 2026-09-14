@@ -1,3 +1,5 @@
+> Historical v4 review. Current production behavior is documented in the README and CHANGELOG.
+
 # Crate v4 review
 
 V4 is intentionally kept off production until review.

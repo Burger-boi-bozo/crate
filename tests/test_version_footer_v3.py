@@ -4,7 +4,7 @@ from pathlib import Path
 def test_footer_has_live_v4_build_label_and_preview_assets():
     html = Path("app/converter_static/index.html").read_text()
     assert 'id="build-version"' in html
-    assert "v5.0.0" in html
+    assert "v5.1.0" in html
     assert "enhancements.js" in html
     assert "preview.js" in html
     assert 'id="link-preview"' in html

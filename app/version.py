@@ -1,7 +1,7 @@
 """Crate release and deployed build metadata."""
 import os
 
-RELEASE_VERSION = "5.0.0"
+RELEASE_VERSION = "5.1.0"
 RUNTIME_VERSION = "crate-v5"
 
 
