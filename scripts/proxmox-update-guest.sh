@@ -30,6 +30,10 @@ ensure_admin_password() {
   printf '%s\n' "$password" > /etc/crate/admin-password
   chmod 600 /etc/crate/admin-password
 }
+ensure_retention() {
+  sed -i '/^CRATE_TTL=/d' /etc/crate/environment
+  printf 'CRATE_TTL=86400\n' >> /etc/crate/environment
+}
 rollback() {
   trap - ERR
   echo "Update failed; restoring the previous app revision."
@@ -44,6 +48,7 @@ git checkout --detach "$ref"
 .venv/bin/python scripts/check_runtime.py
 set_build_ref "$ref"
 ensure_admin_password
+ensure_retention
 mkdir -p /etc/systemd/system/crate.service.d
 cat > /etc/systemd/system/crate.service.d/download-resources.conf <<'UNIT'
 [Service]

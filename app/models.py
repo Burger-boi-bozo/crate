@@ -49,7 +49,7 @@ class Config:
     max_work_bytes: int = 0
     max_duration: int = 0
     timeout: int = 0
-    ttl: int = 0
+    ttl: int = field(default_factory=lambda: env_int("CRATE_TTL", 86400, 60))
     max_queue: int = 0
     daily_jobs: int = 0
     max_downloads: int = 0
