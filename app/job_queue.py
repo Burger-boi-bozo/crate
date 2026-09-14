@@ -298,7 +298,9 @@ class Queue:
                 shutil.rmtree(self.folder(job_id), ignore_errors=True)
                 job.update(status="expired", stage="expired", path=None)
                 self.event(job, "expired", "Stored file expired")
-            if self.config.ttl and job.get("status") not in ACTIVE and now - job.get("created_at", now) > max(86400, self.config.ttl):
+            finished_at = job.get("finished_at") or job.get("created_at", now)
+            if self.config.ttl and job.get("status") not in ACTIVE and now - finished_at >= self.config.ttl:
+                shutil.rmtree(self.folder(job_id), ignore_errors=True)
                 self.delete(job_id)
 
     def cleanup_now(self):
