@@ -52,13 +52,13 @@ function renderStatus(status) {
   if (!(status.providers || []).length) providers.textContent = 'No provider history yet.';
   $('#maintenance-state').textContent = status.scheduler?.maintenance ? 'Maintenance enabled · active jobs may finish' : 'Accepting new jobs';
   $('#maintenance-toggle').textContent = status.scheduler?.maintenance ? 'Disable maintenance' : 'Enable maintenance';
-  $('#admin-version').textContent = status.label || 'v5';
+  $('#admin-version').textContent = status.label || 'v6';
   $('#admin-updated').textContent = `Updated ${new Date().toLocaleTimeString()}`;
 }
 function jobMatches(job) {
   const filter = $('#job-filter').value;
   if (filter === 'all') return true;
-  if (filter === 'active') return ['queued', 'downloading', 'converting', 'paused'].includes(job.status);
+  if (filter === 'active') return ['queued','resolving','downloading','converting','finalizing','paused','retry_wait'].includes(job.status);
   return job.status === filter;
 }
 function actionButton(label, action, job) {
@@ -84,9 +84,9 @@ function renderJobs() {
     const state = document.createElement('span'); state.className = `pill ${job.status}`; state.textContent = job.status;
     const progress = document.createElement('span'); progress.textContent = Number.isFinite(job.progress) ? `${job.progress}%` : '—';
     const actions = document.createElement('div'); actions.className = 'admin-job-actions';
-    if (['queued', 'downloading', 'converting', 'paused'].includes(job.status)) actions.append(actionButton('Cancel', 'cancel', job));
-    if (['failed', 'cancelled', 'expired'].includes(job.status)) actions.append(actionButton('Retry', 'retry', job));
-    if (!['queued', 'downloading', 'converting', 'paused'].includes(job.status)) actions.append(actionButton('Delete', 'delete', job));
+    if (['queued','resolving','downloading','converting','finalizing','paused','retry_wait'].includes(job.status)) actions.append(actionButton('Cancel', 'cancel', job));
+    if (['failed','cancelled','expired'].includes(job.status)) actions.append(actionButton('Retry', 'retry', job));
+    if (!['queued','resolving','downloading','converting','finalizing','paused','retry_wait'].includes(job.status)) actions.append(actionButton('Delete', 'delete', job));
     row.append(title, state, progress, actions); container.append(row);
   }
   if (!container.children.length) container.textContent = 'No jobs match this filter.';
@@ -142,4 +142,4 @@ async function bulkAction(action, ids, button) {
   finally { button.disabled = false; }
 }
 $('#retry-failed').onclick = event => bulkAction('retry', adminJobs.filter(job => job.status === 'failed').map(job => job.id), event.currentTarget);
-$('#delete-finished').onclick = event => bulkAction('delete', adminJobs.filter(job => !['queued', 'downloading', 'converting', 'paused'].includes(job.status)).map(job => job.id), event.currentTarget);
+$('#delete-finished').onclick = event => bulkAction('delete', adminJobs.filter(job => !['queued','resolving','downloading','converting','finalizing','paused','retry_wait'].includes(job.status)).map(job => job.id), event.currentTarget);

@@ -13,8 +13,10 @@ const queue = [];
 w.fetch = async (url, options = {}) => {
   calls.push({url, options});
   let data = {};
-  if (url === '/api/session') data = {authenticated: true, hosting: 'proxmox', workers: 2};
-  else if (url === '/api/version') data = {version: '5.1.0', build: 'abcdef123456', label: 'v5.1.0 · abcdef123456'};
+  if (url === '/api/session') data = {authenticated: true, hosting: 'proxmox', workers: 3};
+  else if (url === '/api/version') data = {version: '6.0.0', build: 'abcdef123456', label: 'v6.0.0 · abcdef123456'};
+  else if (url === '/api/batches') data = [];
+  else if (url === '/api/releases') data = [{version:'6.0.0',date:'2026-09-15',summary:'v6 test',features:['advanced'],fixes:[],current:true,rollback:'5.1.0'}];
   else if (url === '/api/preview') data = {title: 'Preview title', creator: 'Creator', duration: 125,
     source: 'Youtube', thumbnail: 'data:image/png;base64,AA=='};
   else if (url === '/api/music/lookup') data = {title: 'Song', artist: 'Artist', provider: 'Spotify',
@@ -31,11 +33,9 @@ w.fetch = async (url, options = {}) => {
   return {ok: true, status: 200, json: async () => JSON.parse(JSON.stringify(data))};
 };
 const tick = (ms = 15) => new Promise(resolve => setTimeout(resolve, ms));
-const appSource = readFileSync(path.join(base, 'app.js'), 'utf8');
-const enhancementsSource = readFileSync(path.join(base, 'enhancements.js'), 'utf8');
-w.eval(`${appSource}\n${enhancementsSource}`);
-w.eval(readFileSync(path.join(base, 'preview.js'), 'utf8'));
-w.eval(readFileSync(path.join(base, 'version.js'), 'utf8'));
+const sources = ['app.js', 'enhancements.js', 'preview.js', 'version.js', 'v6.js']
+  .map(name => readFileSync(path.join(base, name), 'utf8'));
+w.eval(sources.join('\n'));
 (async () => {
   await tick(); await tick();
   const doc = w.document;
@@ -63,8 +63,12 @@ w.eval(readFileSync(path.join(base, 'version.js'), 'utf8'));
   input.value = 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC';
   await doc.querySelector('#convert-form').onsubmit({preventDefault() {}});
   assert.match(doc.querySelector('#music-results').textContent, /not files from Spotify/);
-  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v5.1.0 · abcdef123456');
+  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v6.0.0 · abcdef123456');
+  assert.ok(doc.querySelector('#output-format'));
+  assert.ok(doc.querySelector('#history-search'));
+  assert.ok(doc.querySelector('#share-dialog'));
+  assert.match(doc.querySelector('.changelog').textContent, /v6\.0\.0/);
   assert.equal(calls.some(call => call.url === '/api/status'), false);
-  console.log('UI passed: preview, private telemetry, progress, controls, version, quality, and music lookup.');
+  console.log('UI passed: v6 advanced controls, history, changelog, preview, progress, privacy, version, and music lookup.');
   w.close();
 })().catch(error => { console.error(error); w.close(); process.exitCode = 1; });

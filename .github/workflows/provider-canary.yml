@@ -1,0 +1,42 @@
+name: Provider canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      yt_dlp_version:
+        description: "yt-dlp version to test; leave blank for latest"
+        required: false
+        type: string
+  schedule:
+    - cron: "17 10 * * 2"
+
+permissions:
+  contents: read
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install FFmpeg and Node
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg nodejs
+      - name: Install Crate dependencies
+        run: python -m pip install -r requirements-dev.txt
+      - name: Install candidate yt-dlp
+        shell: bash
+        run: |
+          if [[ -n "${{ inputs.yt_dlp_version }}" ]]; then
+            python -m pip install --upgrade "yt-dlp[default]==${{ inputs.yt_dlp_version }}"
+          else
+            python -m pip install --upgrade "yt-dlp[default]"
+          fi
+          python -m yt_dlp --version
+      - name: Provider contract tests
+        run: python -m pytest -q tests/test_provider_contracts.py
+      - name: Live provider canary
+        run: python scripts/provider-canary.py

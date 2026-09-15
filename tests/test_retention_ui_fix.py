@@ -12,7 +12,7 @@ def test_proxmox_enforces_24_hour_retention():
     bootstrap = Path("scripts/proxmox-guest.sh").read_text()
     updater = Path("scripts/proxmox-update-guest.sh").read_text()
     assert "CRATE_TTL=86400" in bootstrap
-    assert "CRATE_TTL=86400" in updater
+    assert "set_env CRATE_TTL 86400" in updater
 
 
 def test_batch_link_arrow_has_reserved_space():
@@ -25,7 +25,7 @@ def test_batch_link_arrow_has_reserved_space():
 
 def test_v51_ui_has_cache_bust_and_visible_changelog():
     html = Path("app/converter_static/index.html").read_text()
-    assert "enhancements.css?v=51" in html
+    assert "enhancements.css?v=60" in html
     assert 'id="changelog-heading">Change log<' in html
     assert "v5.1.0" in html
     assert "24 hours" in html

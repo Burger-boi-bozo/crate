@@ -40,10 +40,13 @@ CRATE_HOSTING=proxmox
 CRATE_SESSION_SECRET=$crate_secret
 CRATE_ADMIN_PASSWORD=$crate_admin_password
 CRATE_BUILD_SHA=$CRATE_REF
-CRATE_WORKERS=2
-CRATE_FRAGMENT_CONCURRENCY=4
+CRATE_WORKERS=3
+CRATE_HEAVY_WORKERS=1
+CRATE_FRAGMENT_CONCURRENCY=3
 CRATE_DOWNLOAD_RETRIES=4
-CRATE_FFMPEG_THREADS=0
+CRATE_FFMPEG_THREADS=2
+CRATE_MIN_AVAILABLE_MEMORY=805306368
+CRATE_MAX_LOAD_RATIO=1.25
 CRATE_STALL_TIMEOUT=300
 CRATE_PREVIEW_TIMEOUT=20
 CRATE_TTL=86400
@@ -71,8 +74,9 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/var/lib/crate
-MemoryMax=infinity
-TasksMax=infinity
+MemoryHigh=2800M
+MemoryMax=3200M
+TasksMax=1024
 UMask=0077
 [Install]
 WantedBy=multi-user.target
@@ -119,7 +123,7 @@ def api(path, body=None):
 for _ in range(30):
     try:
         health = api('/api/health')
-        assert health['status'] == 'ok' and health['runtime'] == 'crate-v5' and health['build'] == expected
+        assert health['status'] == 'ok' and health['runtime'] == 'crate-v6' and health['build'] == expected
         break
     except Exception: time.sleep(2)
 else: raise RuntimeError('Crate did not become healthy')
@@ -134,6 +138,6 @@ else: raise RuntimeError('Media smoke test timed out')
 with client.open('http://127.0.0.1:8080/api/jobs/' + job['id'] + '/file', timeout=30) as response:
     content = response.read(2 * 1024 * 1024)
     assert len(content) == job['size'] and b'ftyp' in content[:32]
-print('Crate v5 public-media download verified:', job['width'], 'x', job['height'])
+print('Crate v6 public-media download verified:', job['width'], 'x', job['height'])
 PY
 echo ready > /var/lib/crate/bootstrap-status
