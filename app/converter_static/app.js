@@ -1,7 +1,7 @@
 /* No third-party scripts. Media titles and errors are inserted as text only. */
 const $ = selector => document.querySelector(selector);
 const HISTORY_KEY = 'crate-converter-history-v1';
-const activeStates = new Set(['queued', 'downloading', 'converting', 'paused']);
+const activeStates = new Set(['queued', 'resolving', 'downloading', 'converting', 'finalizing', 'paused', 'retry_wait']);
 let sessionReady = false;
 let filter = 'all';
 let jobs = [];
@@ -55,12 +55,14 @@ function renderJobs() {
   const all = allJobs();
   $('#job-count').textContent = all.length;
   $('#clear-history').hidden = !all.some(x => !activeStates.has(x.status));
-  const shown = all.filter(x => filter === 'all' || (filter === 'mp3' ? ['mp3', 'mka'].includes(x.format) : ['mp4', 'mkv'].includes(x.format)));
+  const audioFormats = ['mp3','mka','m4a','opus','flac','wav','aac'];
+  const shown = all.filter(x => filter === 'all' || (filter === 'mp3' ? audioFormats.includes(x.format) : !audioFormats.includes(x.format)));
   $('#empty-state').hidden = shown.length > 0;
   const fragment = document.createDocumentFragment();
   for (const job of shown) {
     const row = element('article', 'job');
-    row.append(element('div', 'job-icon', ['mp3', 'mka'].includes(job.format) ? '♫' : '▷'));
+    row.dataset.jobId = job.id;
+    row.append(element('div', 'job-icon', audioFormats.includes(job.format) ? '♫' : '▷'));
     const content = element('div', 'job-content');
     content.append(element('h3', 'job-title', job.title || 'Media clip'));
     let source = '';
@@ -68,7 +70,7 @@ function renderJobs() {
     const size = job.size ? ` · ${(job.size / 1048576).toFixed(1)} MB` : '';
     const resolution = job.width && job.height ? ` · ${job.width} × ${job.height}` : '';
     content.append(element('p', 'job-meta', `${(job.format || '').toUpperCase()} · ${source}${resolution}${size}`));
-    const labels = {queued: 'Waiting in the queue…', downloading: 'Downloading the source…', converting: 'Preparing your file…', ready: 'Ready to save', cancelled: 'Cancelled', failed: job.error || 'Conversion failed', expired: 'File expired · convert again to download'};
+    const labels = {queued: 'Waiting in the queue…', resolving: 'Resolving source…', retry_wait: 'Retry scheduled…', downloading: 'Downloading the source…', converting: 'Converting…', finalizing: 'Finalizing…', paused: 'Paused', ready: 'Ready to save', cancelled: 'Cancelled', failed: job.error || 'Conversion failed', expired: 'File expired · convert again to download'};
     content.append(element('p', `job-status${job.status === 'failed' ? ' job-error' : ''}`, labels[job.status] || job.status));
     if (activeStates.has(job.status)) {
       const progress = element('progress');
@@ -98,7 +100,7 @@ function renderJobs() {
       const again = element('button', 'text-button', 'Convert again');
       again.onclick = () => {
         $('#media-url').value = job.url;
-        const radio = $(`input[name="format"][value="${['mp3', 'mka'].includes(job.format) ? 'mp3' : 'mp4'}"]`);
+        const radio = $(`input[name="format"][value="${audioFormats.includes(job.format) ? 'mp3' : 'mp4'}"]`);
         radio.checked = true;
         updateQuality();
         $('#quality').value = ['mkv', 'mka'].includes(job.format) ? 'original' : (job.quality || 'best');

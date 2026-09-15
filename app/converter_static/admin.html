@@ -6,30 +6,44 @@
   <meta name="robots" content="noindex,nofollow">
   <title>Crate — Admin</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=5">
-  <link rel="stylesheet" href="/assets/admin.css?v=5">
-  <script src="/assets/admin.js?v=5" defer></script>
+  <link rel="stylesheet" href="/assets/styles.css?v=60">
+  <link rel="stylesheet" href="/assets/admin.css?v=60">
+  <script src="/assets/admin.js?v=60" defer></script>
+  <script src="/assets/admin-v6.js?v=60" defer></script>
 </head>
 <body>
   <div class="shell admin-shell">
-    <header class="topbar"><a class="brand" href="/"><span class="brand-icon">↧</span> crate<span class="brand-dot">.</span></a><span class="host-label">ADMIN</span></header>
+    <header class="topbar"><a class="brand" href="/"><span class="brand-icon">↧</span> crate<span class="brand-dot">.</span></a><span class="host-label">ADMIN · PRIVATE</span></header>
     <main>
       <section id="admin-login" class="admin-login">
         <span class="eyebrow"><span class="tiny-dot"></span> OPERATOR ACCESS</span>
         <h1>Admin panel.</h1>
-        <p>Server telemetry and queue controls stay separate from the public downloader.</p>
+        <p>Server telemetry, configuration, integrations, and destructive controls stay private.</p>
         <form id="admin-login-form"><label for="admin-password">Admin password</label><input id="admin-password" type="password" autocomplete="current-password" required><button class="primary" type="submit">Sign in</button></form>
+        <button id="passkey-login" class="text-button" type="button">Sign in with passkey</button>
         <p id="admin-login-error" class="error" role="alert" hidden></p>
       </section>
       <section id="admin-dashboard" hidden>
         <div class="admin-heading"><div><span class="eyebrow"><span class="tiny-dot"></span> SERVER OVERVIEW</span><h1>Crate control room.</h1></div><button id="admin-logout" class="text-button">Sign out</button></div>
         <div id="admin-cards" class="admin-cards"></div>
-        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">01 / OPERATIONS</span><h2>Operations</h2></div><span id="maintenance-state" class="muted"></span></div><div class="admin-job-actions"><button id="maintenance-toggle" class="text-button">Enable maintenance</button><button id="cleanup-now" class="text-button">Clean expired/orphan files</button><button id="retry-failed" class="text-button">Retry failed</button><button id="delete-finished" class="text-button">Delete finished</button></div></section>
-        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">02 / SOURCES</span><h2>Provider health</h2></div><span id="admin-updated" class="muted"></span></div><div id="provider-list" class="provider-list"></div></section>
-        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">03 / QUEUE</span><h2>Recent jobs</h2></div><select id="job-filter"><option value="all">All jobs</option><option value="active">Active</option><option value="failed">Failed</option><option value="ready">Ready</option></select></div><div id="admin-jobs" class="admin-jobs"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">01 / OPERATIONS</span><h2>Operations</h2></div><span id="maintenance-state" class="muted"></span></div><div class="admin-job-actions"><button id="maintenance-toggle" class="text-button">Enable maintenance</button><button id="drain-toggle" class="text-button">Enable drain</button><button id="cleanup-now" class="text-button">Clean expired/orphan files</button><button id="retry-failed" class="text-button">Retry failed</button><button id="delete-finished" class="text-button">Delete finished</button></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">02 / METRICS</span><h2>Last 24 hours</h2></div><span id="admin-updated" class="muted"></span></div><div id="metrics-chart" class="metrics-chart"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">03 / SOURCES</span><h2>Provider health</h2></div></div><div id="provider-list" class="provider-list"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">04 / QUEUE</span><h2>Recent jobs</h2></div><select id="job-filter"><option value="all">All jobs</option><option value="active">Active</option><option value="failed">Failed</option><option value="ready">Ready</option></select></div><div id="admin-jobs" class="admin-jobs"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">05 / CONFIG</span><h2>Runtime settings</h2></div><button id="save-settings" class="text-button">Save settings</button></div><div id="settings-grid" class="settings-grid"></div><p class="muted">Only safe runtime controls are editable here; secrets and tunnel configuration are intentionally excluded.</p></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">06 / CAPABILITIES</span><h2>Media engine</h2></div></div><div id="capabilities-list" class="admin-list"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">07 / STORAGE</span><h2>Stored files</h2></div><span id="storage-summary" class="muted"></span></div><div id="storage-files" class="admin-jobs"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">08 / INTEGRATIONS</span><h2>API tokens &amp; webhooks</h2></div></div>
+          <form id="token-form" class="inline-admin-form"><input id="token-name" placeholder="Token name" maxlength="80" required><button class="text-button">Create API token</button></form><div id="token-result" class="admin-secret" hidden></div><div id="token-list" class="admin-list"></div>
+          <form id="webhook-form" class="inline-admin-form"><input id="webhook-name" placeholder="Webhook name" maxlength="80" required><input id="webhook-url" type="url" placeholder="https://example.com/hook" required><button class="text-button">Add webhook</button></form><div id="webhook-list" class="admin-list"></div>
+        </section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">09 / SECURITY</span><h2>Admin security</h2></div><span id="security-summary" class="muted"></span></div><div class="admin-job-actions"><button id="passkey-enroll" class="text-button">Add passkey</button></div><div id="passkey-list" class="admin-list"></div><div id="rate-limit-state" class="muted"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">10 / RECOVERY</span><h2>Diagnostics &amp; backup</h2></div></div><div class="admin-job-actions"><a class="text-button" href="/api/admin/diagnostics">Download diagnostics</a><a class="text-button" href="/api/admin/backup">Backup database</a><a class="text-button" href="/api/admin/backup?include_media=true">Backup + media</a><label class="text-button upload-label" for="restore-backup">Restore backup</label><input id="restore-backup" type="file" accept="application/zip,.zip" hidden></div><p id="restore-state" class="muted">Restore requires maintenance mode with no active jobs.</p></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">11 / DEPLOYMENT</span><h2>Release &amp; rollback</h2></div></div><div id="deployment-state" class="admin-list"></div><div id="release-history" class="admin-list"></div></section>
+        <section class="admin-panel"><div class="panel-heading"><div><span class="step-number">12 / AUDIT</span><h2>Audit log</h2></div></div><div id="audit-list" class="admin-list"></div></section>
       </section>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="admin-version" class="footer-version">v5</span></div><span>Operator view · private telemetry</span><a href="/">Public app ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="admin-version" class="footer-version">v6</span></div><span>Operator view · private telemetry</span><a href="/">Public app ↗</a></footer>
   </div>
 </body>
 </html>

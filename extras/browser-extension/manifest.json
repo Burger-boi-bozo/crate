@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Send to Crate",
+  "version": "6.0.0",
+  "description": "Send the current public page to your self-hosted Crate server.",
+  "permissions": ["activeTab", "storage"],
+  "action": {
+    "default_title": "Send to Crate",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html"
+}

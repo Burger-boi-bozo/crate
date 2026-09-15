@@ -11,5 +11,5 @@ def test_public_page_has_no_admin_or_server_telemetry_controls():
 def test_admin_page_has_operator_assets():
     admin = Path("app/converter_static/admin.html").read_text()
     assert "OPERATOR ACCESS" in admin
-    assert "/assets/admin.js?v=5" in admin
-    assert "/assets/admin.css?v=5" in admin
+    assert "/assets/admin.js?v=60" in admin
+    assert "/assets/admin.css?v=60" in admin

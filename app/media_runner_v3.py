@@ -29,8 +29,9 @@ def env_int(name, default, minimum=1, maximum=32):
     return max(minimum, min(value, maximum))
 
 
-def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="best"):
+def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="best", runner_options=None):
     validate_url(url)
+    runner_options = runner_options or {}
     if output_format not in {"mp4", "mp3", "mkv", "mka"}:
         raise ValueError("Choose MP4, MP3, MKV, or MKA.")
     if max_bytes:
@@ -80,6 +81,11 @@ def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="bes
         "js_runtimes": {"node": {}}, "remote_components": [], "merge_output_format": "mkv",
         "overwrites": True, **format_options(output_format, quality),
     }
+    if runner_options.get("subtitles"):
+        options["writesubtitles"] = True
+        options["writeautomaticsub"] = True
+        options["subtitleslangs"] = list(runner_options.get("subtitle_langs") or ["en"])
+        options["subtitlesformat"] = "vtt/srt/best"
     with PublicYoutubeDL(options) as downloader:
         info = downloader.extract_info(url, download=False)
         if not info or info.get("_type", "video") != "video" or "entries" in info:
@@ -92,7 +98,9 @@ def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="bes
             if media_format.get("url"):
                 validate_url(media_format["url"], source=False)
         downloader.process_info(info)
-    sources = [path for path in directory.glob("source.*") if path.is_file() and path.suffix not in {".part", ".ytdl"}]
+    subtitle_suffixes = {".vtt", ".srt", ".ass", ".ssa", ".lrc"}
+    subtitles = [path for path in directory.glob("source.*") if path.is_file() and path.suffix.lower() in subtitle_suffixes]
+    sources = [path for path in directory.glob("source.*") if path.is_file() and path.suffix.lower() not in subtitle_suffixes | {".part", ".ytdl", ".json"}]
     if len(sources) != 1:
         raise ValueError("No complete media file was returned. Try another clip.")
     emit("progress", status="converting", stage="converting", progress=90,
@@ -102,13 +110,19 @@ def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="bes
     dimensions = convert_file(sources[0], target, output_format, emit, max_duration, max_bytes, quality)
     title = str(info.get("title") or "Media clip")[:200]
     filename = re.sub(r'[<>:"/\\|?*\x00-\x1f\x7f]', "_", title).strip(" .")[:100] or "Media clip"
-    emit("result", file=target.name, title=title, filename=f"{filename}.{output_format}", **dimensions)
+    subtitle = subtitles[0].name if subtitles else None
+    emit("result", file=target.name, title=title, filename=f"{filename}.{output_format}", subtitle=subtitle, **dimensions)
 
 
 if __name__ == "__main__":
     try:
+        runner_options = {}
+        if len(sys.argv) > 7:
+            options_path = Path(sys.argv[7]).resolve()
+            if options_path.parent == Path(sys.argv[3]).resolve() and options_path.is_file():
+                runner_options = json.loads(options_path.read_text())
         run(sys.argv[1], sys.argv[2], Path(sys.argv[3]).resolve(), int(sys.argv[4]),
-            int(sys.argv[5]), sys.argv[6] if len(sys.argv) > 6 else "best")
+            int(sys.argv[5]), sys.argv[6] if len(sys.argv) > 6 else "best", runner_options)
     except Exception as exc:
         emit("error", message=friendly_error(exc), code=error_code(exc), diagnostic=safe_diagnostic(exc))
         sys.exit(1)

@@ -26,7 +26,7 @@ def test_admin_auth_is_separate_and_http_only(tmp_path, monkeypatch):
         assert "crate_admin=" in cookie and "httponly" in cookie and "samesite=strict" in cookie
         status = client.get("/api/admin/status")
         assert status.status_code == 200
-        assert status.json()["version"] == "5.1.0"
+        assert status.json()["version"] == "6.0.0"
 
 
 def test_admin_can_inspect_jobs_without_owner_secret(tmp_path, monkeypatch):

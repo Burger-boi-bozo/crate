@@ -29,13 +29,13 @@ No router port forwarding or public Proxmox dashboard is needed. Cloudflare must
 
 Open the HTTPS hostname and test a short public clip, download the completed file, and check that it plays. Try YouTube separately: using your home connection changes the download origin, but does not guarantee that every site or restricted video will work. Spotify and Apple Music individual song links offer a public-recording lookup; visitors check and choose a YouTube recording rather than exporting a subscription stream.
 
-The app has no public access code and offers maximum available video quality, smaller-resolution choices, MP3 up to 320 kbps and original-codec MKV/MKA output. Duration, size, daily jobs, queue length, repeat downloads and conversion time have no default caps. Jobs run through the v5 scheduler with separate light/heavy limits. Queue/history and files persist across restarts under `/var/lib/crate/media`; interrupted jobs retry from the source. Completed files are retained for 24 hours by default and then removed automatically.
+The app has no public access code and offers maximum available video quality, smaller-resolution choices, MP3 up to 320 kbps and original-codec MKV/MKA output. Duration, size, daily jobs, queue length, repeat downloads and conversion time have no default caps. Jobs run through the v6 adaptive scheduler with priorities, RAM/load/disk gates, learned ETA history, automatic retries, and one heavy conversion at a time on the default 3-vCPU/4-GB profile. Queue/history and files persist across restarts under `/var/lib/crate/media`; interrupted jobs retry from the source. Completed files are retained for 24 hours by default and then removed automatically.
 
 Render's temporary jobs/files are not transferred automatically. History is saved per browser and hostname. Verify the new site and save any needed old files before suspending or deleting the old Render service. DNS cutover and Render retirement are not performed by the VM creation step.
 
 ## Admin access
 
-Open `/admin` on the Crate hostname. There is no username. v5.1 defaults the admin password to `password`; existing v5 installs migrate to that default once. If you later change `CRATE_ADMIN_PASSWORD` in `/etc/crate/environment`, subsequent updates preserve the custom value.
+Open `/admin` on the Crate hostname. There is no username. The deployment default admin password is `password`; later manual `CRATE_ADMIN_PASSWORD` changes are preserved. v6 adds optional passkeys, trusted-session duration, admin IP restrictions, and login rate limiting.
 
 ## Update your existing VM
 

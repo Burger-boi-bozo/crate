@@ -1,15 +1,13 @@
 from pathlib import Path
 
 
-def test_updater_verifies_exact_v5_build_and_provisions_admin_password():
+def test_updater_verifies_exact_v6_build_and_blue_green_gate():
     script = Path("scripts/proxmox-update-guest.sh").read_text()
-    assert 'health["runtime"] == "crate-v5"' in script
-    assert 'health["build"] == revision[:12]' in script
-    assert "pip install -r requirements.txt" in script
+    assert "health['runtime'] == 'crate-v6'" in script
+    assert "health['build'] == revision[:12]" in script
+    assert "/opt/crate-releases" in script
+    assert "PORT=18082" in script
     assert "OnUnitActiveSec=2min" in script
-    assert "CRATE_ADMIN_PASSWORD=" in script
-    assert "/etc/crate/admin-password" in script
-    assert "chmod 600 /etc/crate/admin-password" in script
 
 
 def test_auto_updater_still_requires_successful_push_workflow():
@@ -19,11 +17,9 @@ def test_auto_updater_still_requires_successful_push_workflow():
     assert 'run.get("head_sha") == revision' in script
 
 
-def test_v51_defaults_admin_password_once_and_preserves_future_changes():
+def test_admin_password_defaults_on_install_and_updates_preserve_environment():
     install = Path("scripts/proxmox-guest.sh").read_text()
     update = Path("scripts/proxmox-update-guest.sh").read_text()
     assert 'crate_admin_password="password"' in install
     assert '.v51-admin-default-applied' in install
-    assert 'password="password"' in update
-    assert '[[ ! -f "$marker" ]]' in update
-    assert 'else\n    password="$(sed -n' in update
+    assert 'CRATE_ADMIN_PASSWORD' not in update

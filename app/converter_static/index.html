@@ -7,12 +7,14 @@
   <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
   <title>Crate — A link. A file. Done.</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/assets/styles.css?v=51">
-  <link rel="stylesheet" href="/assets/enhancements.css?v=51">
-  <script src="/assets/app.js?v=51" defer></script>
-  <script src="/assets/enhancements.js?v=51" defer></script>
-  <script src="/assets/preview.js?v=51" defer></script>
-  <script src="/assets/version.js?v=51" defer></script>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="stylesheet" href="/assets/styles.css?v=60">
+  <link rel="stylesheet" href="/assets/enhancements.css?v=60">
+  <script src="/assets/app.js?v=60" defer></script>
+  <script src="/assets/enhancements.js?v=60" defer></script>
+  <script src="/assets/preview.js?v=60" defer></script>
+  <script src="/assets/version.js?v=60" defer></script>
+  <script src="/assets/v6.js?v=60" defer></script>
 </head>
 <body>
   <div class="shell">
@@ -30,13 +32,25 @@
         <div class="card-header"><span class="step-number">01 / CONVERT</span><span class="card-note">No account or code needed</span></div>
         <form id="convert-form">
           <label for="media-url">Paste your link or a batch</label>
-          <div class="url-field batch-url-field"><span aria-hidden="true">↗</span><textarea id="media-url" name="url" inputmode="url" autocomplete="off" spellcheck="false" required maxlength="42000" rows="2" placeholder="One public media URL, or paste up to 20 URLs on separate lines"></textarea></div>
+          <div class="url-field batch-url-field"><span aria-hidden="true">↗</span><textarea id="media-url" name="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="42000" rows="2" placeholder="One public media URL, or paste up to 20 URLs on separate lines"></textarea></div>
+          <div class="input-tools"><button id="paste-link" type="button" class="text-button">Paste from clipboard</button><label class="text-button upload-label" for="local-file">Choose local media</label><input id="local-file" type="file" accept="video/*,audio/*,image/gif,image/webp" hidden><span id="local-file-name" class="muted-inline"></span></div>
           <section id="link-preview" class="link-preview" aria-live="polite" hidden></section>
           <fieldset><legend>Make it a…</legend><div class="format-options">
             <label class="format-option"><input type="radio" name="format" value="mp4" checked><span class="format-icon" aria-hidden="true">▷</span><span><strong>Video</strong><small>MP4 or original MKV</small></span><span class="radio-mark"></span></label>
             <label class="format-option"><input type="radio" name="format" value="mp3"><span class="format-icon" aria-hidden="true">♫</span><span><strong>Audio</strong><small>MP3 or original audio</small></span><span class="radio-mark"></span></label>
           </div></fieldset>
           <div class="quality-field"><label for="quality">Choose quality</label><select id="quality" name="quality" aria-describedby="quality-note"></select><p id="quality-note" class="quality-note"></p></div>
+          <details class="advanced-controls"><summary>Advanced options <span aria-hidden="true">+</span></summary><div class="advanced-grid">
+            <label>Output format<select id="output-format"><option value="auto">Automatic</option><option>mp4</option><option>mkv</option><option>webm</option><option>gif</option><option>webp</option><option>mp3</option><option>m4a</option><option>mka</option><option>opus</option><option>flac</option><option>wav</option><option>aac</option></select></label>
+            <label>Priority<select id="job-priority"><option value="normal">Normal</option><option value="high">High</option><option value="low">Low</option></select></label>
+            <label>Start time (seconds)<input id="trim-start" type="number" min="0" step="0.1" placeholder="0"></label><label>End time (seconds)<input id="trim-end" type="number" min="0" step="0.1" placeholder="Full clip"></label>
+            <label>Frame rate<input id="video-fps" type="number" min="1" max="120" placeholder="Source"></label><label>CRF / quality<input id="video-crf" type="number" min="0" max="51" placeholder="20"></label>
+            <label>Video codec<select id="video-codec"><option value="auto">Automatic</option><option value="copy">Copy when compatible</option><option value="h264">H.264</option><option value="hevc">HEVC</option><option value="av1">AV1</option><option value="vp9">VP9</option></select></label>
+            <label>Audio codec<select id="audio-codec"><option value="auto">Automatic</option><option value="copy">Copy when compatible</option><option value="aac">AAC</option><option value="opus">Opus</option><option value="mp3">MP3</option><option value="flac">FLAC</option><option value="pcm_s16le">PCM</option></select></label>
+            <label>Audio bitrate (kbps)<input id="audio-bitrate" type="number" min="64" max="512" placeholder="Automatic"></label><label>Hardware encoding<select id="hardware-mode"><option value="auto">Automatic when available</option><option value="off">Software only</option></select></label>
+          </div><div class="advanced-checks"><label><input id="embed-metadata" type="checkbox"> Embed title/creator/source metadata</label><label><input id="embed-thumbnail" type="checkbox"> Embed artwork when supported</label><label><input id="include-subtitles" type="checkbox"> Include subtitles</label></div>
+          <div class="advanced-grid subtitle-options"><label>Subtitle languages<input id="subtitle-langs" type="text" value="en" placeholder="en, es"></label><label>Subtitle output<select id="subtitle-mode"><option value="off">Off</option><option value="embed">Embed</option><option value="external">Separate file</option></select></label></div>
+          <label class="template-field">Filename template<input id="filename-template" type="text" value="{title}" maxlength="160"><small>Available: {title}, {creator}, {source}, {format}, {quality}, {resolution}, {id}</small></label></details>
           <button id="convert-button" type="submit" class="primary convert-button" disabled>Create download <span aria-hidden="true">↓</span></button>
           <p class="limits" id="limits">Single links or batches of up to 20 · no duration, file-size, or daily download caps</p>
         </form>
@@ -47,7 +61,8 @@
       <div class="supported"><span>TRY PUBLIC MEDIA LINKS FROM</span><p>YouTube <i>·</i> Vimeo <i>·</i> TikTok <i>·</i> Instagram <i>·</i> SoundCloud <i>·</i> Spotify &amp; Apple Music song lookup</p><small>Also supports many podcast, social video, and direct media links. Music links let you choose a public recording. Other sites download directly when supported.</small></div>
       <section class="downloads-section" aria-labelledby="downloads-heading">
         <div class="section-heading"><div><span class="step-number">02 / COLLECT</span><h2 id="downloads-heading">Your downloads <span id="job-count">0</span></h2></div><button id="clear-history" class="text-button" hidden>Clear history</button></div>
-        <div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div>
+        <div class="history-tools"><input id="history-search" type="search" placeholder="Search title, source, or filename" aria-label="Search download history"><div class="filters" role="group" aria-label="Filter downloads"><button data-filter="all" aria-pressed="true">All files</button><button data-filter="mp4" aria-pressed="false">Video</button><button data-filter="mp3" aria-pressed="false">Audio</button></div></div>
+        <div id="batch-list" class="batch-list" aria-live="polite"></div>
         <div id="job-list" aria-live="polite"></div>
         <div id="empty-state" class="empty-state"><span aria-hidden="true">↧</span><h3>Your next download starts above.</h3><p>Converted files will appear here, ready to save.</p></div>
         <p class="storage-note">Completed files are kept for 24 hours, then removed automatically. “Clear history” removes them sooner.</p>
@@ -63,12 +78,14 @@
       <section class="changelog" aria-labelledby="changelog-heading">
         <span class="step-number">CHANGE LOG</span>
         <h2 id="changelog-heading">Change log</h2>
+        <div class="changelog-entry"><div><strong>v6.0.0</strong><span>Sep 2026</span></div><p>Advanced conversion controls, uploads, subtitles, share links, PWA support, persistent batches, richer scheduling, integrations, and a substantially expanded private admin control room.</p></div>
         <div class="changelog-entry"><div><strong>v5.1.0</strong><span>Sep 2026</span></div><p>Fixed the paste-field arrow, added 24-hour automatic cleanup, simplified admin access, and refreshed the project documentation.</p></div>
         <div class="changelog-entry"><div><strong>v5.0.0</strong><span>Sep 2026</span></div><p>Added batch downloads, live SSE progress, smarter scheduling, provider health, admin controls, and preview recommendations.</p></div>
         <a class="changelog-link" href="https://github.com/Burger-boi-bozo/crate/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Full change log ↗</a>
       </section>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v5.1.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v6.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
+    <dialog id="share-dialog" class="share-dialog"><form method="dialog" id="share-form"><div class="panel-heading"><div><span class="step-number">SHARE FILE</span><h2>Create a temporary link</h2></div><button value="cancel" class="text-button">Close</button></div><label>Expires in<select id="share-expiry"><option value="3600">1 hour</option><option value="86400" selected>24 hours</option><option value="604800">7 days</option></select></label><label>Download limit<input id="share-limit" type="number" min="0" max="1000" value="0"><small>0 means unlimited until expiry.</small></label><label>Optional password<input id="share-password" type="password" maxlength="128" autocomplete="new-password"></label><button id="share-create" type="submit" value="default" class="primary">Create share link</button><div id="share-result" class="share-result" hidden><input id="share-url" readonly><button id="copy-share" type="button" class="text-button">Copy link</button></div></form></dialog>
 </body>
 </html>

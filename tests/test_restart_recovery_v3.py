@@ -9,7 +9,7 @@ from app.models import Config
 
 
 @pytest.mark.asyncio
-async def test_interrupted_jobs_requeue_and_legacy_json_is_migrated(tmp_path, monkeypatch):
+async def test_interrupted_jobs_requeue_resume_partial_and_legacy_json_is_migrated(tmp_path, monkeypatch):
     async def idle(self):
         await asyncio.Event().wait()
     monkeypatch.setattr(Queue, "work", idle)
@@ -27,7 +27,9 @@ async def test_interrupted_jobs_requeue_and_legacy_json_is_migrated(tmp_path, mo
         job = queue.jobs[job_id]
         assert job["status"] == "queued"
         assert job["progress"] == 0
-        assert not folder.exists()
+        assert job["resume_work"] is True
+        assert folder.is_dir()
+        assert (folder / "source.mp4.part").read_bytes() == b"partial"
         assert (tmp_path / "crate.db").is_file()
         assert (tmp_path / "jobs.json.v3-backup").is_file()
     finally:

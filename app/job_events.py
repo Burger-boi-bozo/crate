@@ -4,7 +4,7 @@ from app.errors import JobError
 
 
 def apply_progress(job: dict, event: dict) -> None:
-    for key in ("downloaded_bytes", "total_bytes", "speed", "eta", "conversion_progress"):
+    for key in ("downloaded_bytes", "total_bytes", "speed", "eta", "conversion_progress", "phase_progress"):
         if key in event:
             job[key] = event[key]
     job["progress"] = max(0, min(99, int(event.get("progress", job.get("progress", 0)) or 0)))

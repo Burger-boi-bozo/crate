@@ -128,8 +128,8 @@ def metrics(jobs, now=None):
 
 def install(app, queue, config, key):
     @app.post("/api/admin/login")
-    async def login(body: Login):
-        return login_response(body.password, config, key)
+    async def login(body: Login, request: Request):
+        return login_response(body.password, config, key, request)
 
     @app.delete("/api/admin/session", status_code=204)
     async def logout():

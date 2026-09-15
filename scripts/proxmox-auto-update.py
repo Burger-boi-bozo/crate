@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 import urllib.parse
 import urllib.request
+from pathlib import Path
 
 REPO = "Burger-boi-bozo/crate"
 API = f"https://api.github.com/repos/{REPO}"
@@ -33,7 +34,7 @@ def approved(runs, revision):
 
 def main():
     current = subprocess.run(
-        ["git", "-C", "/opt/crate", "rev-parse", "HEAD"],
+        ["git", "-C", str(Path("/opt/crate-current") if Path("/opt/crate-current").exists() else Path("/opt/crate")), "rev-parse", "HEAD"],
         check=True, capture_output=True, text=True, timeout=15,
     ).stdout.strip()
     target = fetch_json(API + "/commits/main")["sha"]
