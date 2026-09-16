@@ -14,12 +14,12 @@ from pathlib import Path
 
 from fastapi import File, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse, PlainTextResponse
-from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from starlette.background import BackgroundTask
 
 from app.admin_auth import auth_status, require_admin
 from app.media_convert_v6 import hardware_capabilities
+from app.gpu_worker_client import health as gpu_worker_health
 from app.media_policy import validate_url
 from app.models import ACTIVE
 from app.release_history import releases
@@ -212,7 +212,8 @@ def install(app, queue, config, key):
             ytdlp = subprocess.run([str(Path(os.sys.executable)), "-m", "yt_dlp", "--version"], capture_output=True, text=True, timeout=5, check=True).stdout.strip()
         except Exception:
             ytdlp = "unavailable"
-        return {"hardware": hardware_capabilities(), "ffmpeg": ffmpeg[:160], "yt_dlp": ytdlp[:80],
+        remote_gpu = await gpu_worker_health(config)
+        return {"hardware": hardware_capabilities(), "gpu_worker": remote_gpu, "ffmpeg": ffmpeg[:160], "yt_dlp": ytdlp[:80],
                 "formats": ["mp4", "mp3", "mkv", "mka", "m4a", "opus", "webm", "flac", "wav", "aac", "gif", "webp"]}
 
     @app.post("/api/admin/tokens", status_code=201)
@@ -279,10 +280,11 @@ def install(app, queue, config, key):
         counts = {}
         for job in queue.jobs.values():
             counts[job.get("status", "unknown")] = counts.get(job.get("status", "unknown"), 0) + 1
+        remote_gpu = await gpu_worker_health(config)
         payload = {"generated_at": time.time(), "version": version_payload(), "scheduler": queue.scheduler_status(),
                    "settings": _safe_settings(queue), "job_counts": counts,
                    "providers": __import__("app.api_admin", fromlist=["provider_summary"]).provider_summary(list(queue.jobs.values())),
-                   "capability_summary": {"hardware": hardware_capabilities()}, "audit_tail": queue.store.audit_log(50)}
+                   "capability_summary": {"hardware": hardware_capabilities(), "gpu_worker": remote_gpu}, "audit_tail": queue.store.audit_log(50)}
         try:
             with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as archive:
                 archive.writestr("diagnostics.json", json.dumps(payload, indent=2, sort_keys=True))

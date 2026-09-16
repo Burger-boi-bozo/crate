@@ -2,9 +2,9 @@
 
 **A link. A file. Done.** Crate is a self-hosted public-media converter built for a small Proxmox VM. Paste one link or a batch, choose video or audio, and Crate handles the queue, conversion, and download.
 
-Current release: **v6.0.0**
+Current release: **v6.1.0**
 
-## What v6 includes
+## What v6.1 includes
 
 - Single-link and batch downloads (up to 20 links per batch) with ZIP collection.
 - MP4, MKV, WebM, GIF, WebP, MP3, M4A, MKA, Opus, FLAC, WAV, and AAC outputs with advanced codec, CRF, FPS, trimming, metadata, thumbnail, subtitle, and filename controls.
@@ -13,6 +13,7 @@ Current release: **v6.0.0**
 - Adaptive CPU/RAM/disk-aware scheduling, user/admin priorities, learned ETA history, automatic retries, fallback streams, resumable work, and completed-output reuse.
 - Link previews with source metadata, estimated size, and format/quality recommendations.
 - Private admin control room with queue/storage/config controls, metrics, provider health, audit logs, passkeys, API tokens, webhooks, diagnostics, backup/restore, and deployment history.
+- Optional RX 6700 XT GPU worker for H.264/HEVC VAAPI transcoding with automatic software fallback.
 - Automatic deletion of completed files after **24 hours** (`CRATE_TTL=86400`).
 - PWA install/share-target support, local uploads, temporary share links, CLI/browser-extension automation, and Cloudflare Tunnel deployment without router ports.
 

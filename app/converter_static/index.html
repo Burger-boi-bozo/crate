@@ -78,13 +78,13 @@
       <section class="changelog" aria-labelledby="changelog-heading">
         <span class="step-number">CHANGE LOG</span>
         <h2 id="changelog-heading">Change log</h2>
-        <div class="changelog-entry"><div><strong>v6.0.0</strong><span>Sep 2026</span></div><p>Advanced conversion controls, uploads, subtitles, share links, PWA support, persistent batches, richer scheduling, integrations, and a substantially expanded private admin control room.</p></div>
+        <div class="changelog-entry"><div><strong>v6.1.0</strong><span>Sep 2026</span></div><p>Advanced conversion controls, uploads, subtitles, share links, PWA support, persistent batches, richer scheduling, integrations, and a substantially expanded private admin control room.</p></div>
         <div class="changelog-entry"><div><strong>v5.1.0</strong><span>Sep 2026</span></div><p>Fixed the paste-field arrow, added 24-hour automatic cleanup, simplified admin access, and refreshed the project documentation.</p></div>
         <div class="changelog-entry"><div><strong>v5.0.0</strong><span>Sep 2026</span></div><p>Added batch downloads, live SSE progress, smarter scheduling, provider health, admin controls, and preview recommendations.</p></div>
         <a class="changelog-link" href="https://github.com/Burger-boi-bozo/crate/blob/main/CHANGELOG.md" target="_blank" rel="noopener noreferrer">Full change log ↗</a>
       </section>
     </main>
-    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v6.0.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
+    <footer><div class="footer-left"><a class="brand footer-brand" href="/">crate.</a><span id="build-version" class="footer-version">  v6.1.0</span></div><span>Less buffering. More doing.</span><a href="https://github.com/Burger-boi-bozo/crate" target="_blank" rel="noopener noreferrer">Open source ↗</a></footer>
   </div>
     <dialog id="share-dialog" class="share-dialog"><form method="dialog" id="share-form"><div class="panel-heading"><div><span class="step-number">SHARE FILE</span><h2>Create a temporary link</h2></div><button value="cancel" class="text-button">Close</button></div><label>Expires in<select id="share-expiry"><option value="3600">1 hour</option><option value="86400" selected>24 hours</option><option value="604800">7 days</option></select></label><label>Download limit<input id="share-limit" type="number" min="0" max="1000" value="0"><small>0 means unlimited until expiry.</small></label><label>Optional password<input id="share-password" type="password" maxlength="128" autocomplete="new-password"></label><button id="share-create" type="submit" value="default" class="primary">Create share link</button><div id="share-result" class="share-result" hidden><input id="share-url" readonly><button id="copy-share" type="button" class="text-button">Copy link</button></div></form></dialog>
 </body>

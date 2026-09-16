@@ -13,6 +13,7 @@ from pathlib import Path
 
 from app.errors import JobError
 from app.job_events import apply_progress, source_error
+from app.gpu_worker_client import GpuWorkerError, configured as gpu_configured, eligible as gpu_eligible, health as gpu_health, transcode as gpu_transcode
 from app.media_convert_v6 import probe, sha256_file
 from app.runner_process import runner_environment, spawn
 
@@ -118,6 +119,33 @@ async def preview_metadata(job: dict, directory: Path):
     return metadata, cover
 
 
+async def gpu_postprocess(queue, job: dict, directory: Path, source: Path, runner_result: dict, metadata: dict, subtitle: Path | None):
+    if not gpu_configured(queue.config) or not gpu_eligible(job):
+        return None
+    status = await gpu_health(queue.config)
+    requested = (job.get("options") or {}).get("video_codec", "auto")
+    requested = "h264" if requested == "auto" else requested
+    if not status.get("available") or not status.get("compatible", True) or requested not in set(status.get("video_codecs") or []):
+        return None
+    target = directory / ("final." + job["format"])
+    queue.event(job, "gpu_worker", "Sending transcode to the GPU worker", {"worker": status.get("worker"), "codec": requested})
+    try:
+        result = await gpu_transcode(queue.config, queue, job, source, target, metadata)
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        target.unlink(missing_ok=True)
+        queue.event(job, "gpu_fallback", "GPU worker unavailable; using software encoding", {"reason": type(exc).__name__})
+        return None
+    result.update(file=target.name, checksum=await asyncio.to_thread(sha256_file, target),
+                  title=runner_result.get("title") or metadata.get("title") or "Media clip",
+                  creator=metadata.get("creator") or "", source=runner_result.get("source") or "media")
+    if subtitle and (job.get("options") or {}).get("subtitle_mode") == "external":
+        result["subtitle"] = subtitle.name
+    queue.event(job, "gpu_complete", "GPU transcode completed", {"worker": result.get("gpu_worker"), "encoder": result.get("video_encoder")})
+    return result
+
+
 async def postprocess(queue, job: dict, directory: Path, source: Path, runner_result: dict):
     metadata, cover = await preview_metadata(job, directory)
     subtitle = None
@@ -126,6 +154,9 @@ async def postprocess(queue, job: dict, directory: Path, source: Path, runner_re
         if candidate.parent == directory.resolve() and candidate.is_file() and candidate.suffix.lower() in {".vtt", ".srt", ".ass", ".ssa"}:
             subtitle = candidate
     metadata["title"] = runner_result.get("title") or metadata.get("title")
+    gpu_result = await gpu_postprocess(queue, job, directory, source, runner_result, metadata, subtitle)
+    if gpu_result is not None:
+        return gpu_result
     spec = {
         "source": str(source), "format": job["format"], "options": job.get("options") or {}, "metadata": metadata,
         "max_duration": queue.config.max_duration, "max_bytes": queue.config.max_bytes,
@@ -171,7 +202,7 @@ def finish_job(queue, job, directory: Path, result: dict, started_wall: float):
                creator=str(result.get("creator") or "")[:120], filename=filename, path=str(output), size=output.stat().st_size,
                width=result.get("width"), height=result.get("height"), source_duration=source_duration,
                input_bytes=result.get("input_bytes") or job.get("input_bytes") or job.get("total_bytes"),
-               checksum=checksum, video_encoder=result.get("video_encoder"), fallback_used=bool(result.get("fallback_used")),
+               checksum=checksum, video_encoder=result.get("video_encoder"), gpu_worker=result.get("gpu_worker"), fallback_used=bool(result.get("fallback_used")),
                subtitle_path=subtitle_path, subtitle_filename=subtitle_filename,
                finished_at=time.time(), expires_at=time.time() + queue.config.ttl if queue.config.ttl else None,
                resume_work=False, runner_format=None, runner_quality=None)

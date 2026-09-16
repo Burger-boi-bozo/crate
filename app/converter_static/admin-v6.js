@@ -57,6 +57,9 @@ function v6RenderCapabilities(data) {
   root.append(v6TextRow('FFmpeg', data.ffmpeg || 'unavailable'));
   root.append(v6TextRow('yt-dlp', data.yt_dlp || 'unavailable'));
   root.append(v6TextRow('Encoding', `${hardware}${encoders.length ? ' · '+encoders.join(', ') : ''}`));
+  const gpu=data.gpu_worker || {};
+  const gpuDetail=!gpu.configured ? 'not configured' : (!gpu.compatible && gpu.version ? `${gpu.worker || 'remote worker'} · v${gpu.version} · controller mismatch` : (gpu.available ? `${gpu.worker || 'remote worker'} · v${gpu.version || '?'} · ${(gpu.video_codecs || []).join('/')} · ready` : `configured · unavailable${gpu.error ? ' · '+gpu.error : ''}`));
+  root.append(v6TextRow('GPU worker', gpuDetail));
   root.append(v6TextRow('Outputs', (data.formats || []).join(', ')));
 }
 

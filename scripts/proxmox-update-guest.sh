@@ -120,7 +120,7 @@ for attempt in range(45):
         assert health['build'] == revision[:12]
         with urllib.request.urlopen('http://127.0.0.1:18082/api/capabilities', timeout=2) as response:
             capabilities = json.load(response)
-        assert capabilities['version'] == '6.0.0' and capabilities['features']['advanced'] is True
+        assert capabilities['version'] == '6.1.0' and capabilities['features']['advanced'] is True
         print('Candidate health gate passed:', revision[:12])
         break
     except Exception:

@@ -34,14 +34,14 @@ def test_release_identity_and_public_capabilities(tmp_path, monkeypatch):
     idle_queue(monkeypatch)
     app = create_app(Config(data_dir=tmp_path, secure_cookie=False, admin_password="password"))
     with TestClient(app) as client:
-        assert RELEASE_VERSION == "6.0.0"
+        assert RELEASE_VERSION == "6.1.0"
         assert RUNTIME_VERSION == "crate-v6"
         capabilities = client.get("/api/capabilities").json()
-        assert capabilities["version"] == "6.0.0"
+        assert capabilities["version"] == "6.1.0"
         assert capabilities["features"]["advanced"] is True
         assert capabilities["features"]["shares"] is True
         releases = client.get("/api/releases").json()
-        assert releases[0]["version"] == "6.0.0"
+        assert releases[0]["version"] == "6.1.0"
         assert releases[0]["current"] is True
         assert client.get("/manifest.webmanifest").status_code == 200
         assert client.get("/sw.js").status_code == 200
@@ -87,7 +87,7 @@ def test_private_v6_admin_controls(tmp_path, monkeypatch):
         assert client.get("/api/admin/settings").status_code == 200
         assert client.get("/api/admin/storage").status_code == 200
         assert client.get("/api/admin/security").json()["session_ttl"] > 0
-        assert client.get("/api/admin/deployment").json()["current"]["version"] == "6.0.0"
+        assert client.get("/api/admin/deployment").json()["current"]["version"] == "6.1.0"
 
 
 def test_api_tokens_are_scoped_and_isolated(tmp_path, monkeypatch):
@@ -224,7 +224,7 @@ def test_admin_diagnostics_backup_and_restore(tmp_path, monkeypatch):
         with zipfile.ZipFile(io.BytesIO(diagnostics.content)) as archive:
             assert "diagnostics.json" in archive.namelist()
             data = json.loads(archive.read("diagnostics.json"))
-            assert data["version"]["version"] == "6.0.0"
+            assert data["version"]["version"] == "6.1.0"
             assert "admin_password" not in json.dumps(data)
         backup = client.get("/api/admin/backup")
         assert backup.status_code == 200
