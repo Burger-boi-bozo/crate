@@ -14,9 +14,9 @@ w.fetch = async (url, options = {}) => {
   calls.push({url, options});
   let data = {};
   if (url === '/api/session') data = {authenticated: true, hosting: 'proxmox', workers: 3};
-  else if (url === '/api/version') data = {version: '6.1.0', build: 'abcdef123456', label: 'v6.1.0 · abcdef123456'};
+  else if (url === '/api/version') data = {version: '6.1.1', build: 'abcdef123456', label: 'v6.1.1 · abcdef123456'};
   else if (url === '/api/batches') data = [];
-  else if (url === '/api/releases') data = [{version:'6.1.0',date:'2026-09-15',summary:'v6.1 test',features:['advanced'],fixes:[],current:true,rollback:'6.0.0'}];
+  else if (url === '/api/releases') data = [{version:'6.1.1',date:'2026-09-15',summary:'v6.1 test',features:['advanced'],fixes:[],current:true,rollback:'6.0.0'}];
   else if (url === '/api/preview') data = {title: 'Preview title', creator: 'Creator', duration: 125,
     source: 'Youtube', thumbnail: 'data:image/png;base64,AA=='};
   else if (url === '/api/music/lookup') data = {title: 'Song', artist: 'Artist', provider: 'Spotify',
@@ -63,7 +63,7 @@ w.eval(sources.join('\n'));
   input.value = 'https://open.spotify.com/track/4uLU6hMCjMI75M1A2tKUQC';
   await doc.querySelector('#convert-form').onsubmit({preventDefault() {}});
   assert.match(doc.querySelector('#music-results').textContent, /not files from Spotify/);
-  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v6.1.0 · abcdef123456');
+  assert.equal(doc.querySelector('#build-version').textContent.trim(), 'v6.1.1 · abcdef123456');
   assert.ok(doc.querySelector('#output-format'));
   assert.ok(doc.querySelector('#history-search'));
   assert.ok(doc.querySelector('#share-dialog'));

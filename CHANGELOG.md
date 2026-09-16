@@ -2,6 +2,15 @@
 
 All notable production changes to Crate are recorded here.
 
+## 6.1.1 — 2026-09-16
+
+### Fixed
+- Route yt-dlp format-probe files to each job's writable directory. Absolute output filenames and TMPDIR alone did not prevent probes from writing into the read-only release directory.
+- Give metadata previews private temporary directories with automatic cleanup.
+- Report local read-only, permission, quota, and disk-space failures as storage errors instead of blaming the source and retrying a permanent local failure.
+- Apply production's read-only filesystem restrictions to the blue-green candidate health service.
+- Add regression coverage using yt-dlp's real format-probe code, plus wrapped storage errors and retry behavior.
+
 ## 6.1.0 — 2026-09-15
 
 ### GPU acceleration

@@ -73,6 +73,8 @@ def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="bes
         "noplaylist": True, "playlistend": 1, "lazy_playlist": True,
         "extract_flat": "in_playlist", "match_filter": check_metadata,
         "outtmpl": str(directory / "source.%(ext)s"), "restrictfilenames": True,
+        # Format probes use paths.temp, ignoring both outtmpl and TMPDIR.
+        "paths": {"home": str(directory.resolve()), "temp": str(directory.resolve())},
         "windowsfilenames": True, "cachedir": False, "proxy": "", "socket_timeout": 20,
         "retries": retries, "fragment_retries": retries, "extractor_retries": max(1, retries // 2),
         "skip_unavailable_fragments": False, "concurrent_fragment_downloads": fragments,

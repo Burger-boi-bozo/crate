@@ -24,6 +24,7 @@ from app.models import ACTIVE, RUNNING, Config, MediaOptions, Submission
 BLOCKED_CODES = {"host_blocked", "sign_in_required", "source_forbidden"}
 TRANSIENT_CODES = {"host_blocked", "source_forbidden", "stalled", "source_error", "network_error"}
 ERROR_SUGGESTIONS = {
+    "storage_error": "Crate's temporary storage is unavailable. The server operator needs to fix it before retrying.",
     "host_blocked": "The provider is throttling this server. Crate will retry transient blocks automatically.",
     "sign_in_required": "This source needs an account or verification and cannot be fetched anonymously.",
     "source_forbidden": "The provider refused the media request. Crate can retry with a compatible fallback stream.",
