@@ -41,7 +41,9 @@ set_env() {
 }
 
 ensure_runtime_env() {
-  install -d -m 700 /etc/crate
+  # The service must traverse this directory to read its root:crate 0640
+  # GPU token. The environment file itself remains root-only (0600).
+  install -d -o root -g crate -m 750 /etc/crate
   set_env CRATE_BUILD_SHA "$ref"
   set_env CRATE_TTL 86400
   set_env CRATE_WORKERS 3
