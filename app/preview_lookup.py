@@ -4,6 +4,7 @@ from __future__ import annotations
 import base64
 import json
 import sys
+import tempfile
 
 import yt_dlp
 
@@ -92,7 +93,11 @@ def lookup(url: str) -> dict:
         "retries": 1, "extractor_retries": 1,
         "js_runtimes": {"node": {}}, "remote_components": [],
     }
-    with PublicYoutubeDL(options) as downloader:
+    # Metadata extraction may probe candidate formats by downloading samples.
+    # Give each preview disposable storage, including any failed-probe remnants.
+    with tempfile.TemporaryDirectory(prefix="crate-preview-") as directory, PublicYoutubeDL({
+        **options, "paths": {"home": directory, "temp": directory},
+    }) as downloader:
         info = downloader.extract_info(url, download=False)
         if not info or info.get("_type", "video") != "video" or "entries" in info:
             raise ValueError("Paste a link to one video, song, or media file.")

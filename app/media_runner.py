@@ -1,6 +1,7 @@
 """One job per process; stdout is a small JSON event stream for the queue."""
 from __future__ import annotations
 
+import errno
 import json
 import re
 import resource
@@ -102,6 +103,14 @@ def convert_file(source: Path, target: Path, output_format: str, max_duration: i
 
 
 def error_code(error):
+    # Local write failures must not be blamed on the provider or retried as
+    # network errors. yt-dlp can wrap the original filesystem exception.
+    current, seen = error, set()
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, OSError) and current.errno in {errno.EROFS, errno.EACCES, errno.ENOSPC, errno.EDQUOT}:
+            return "storage_error"
+        current = current.__cause__ or current.__context__
     text = str(error).lower()
     if any(s in text for s in ("not a bot", "captcha", "429", "too many requests", "confirm you’re not", "confirm you're not")):
         return "host_blocked"
@@ -120,6 +129,7 @@ def error_code(error):
 
 def friendly_error(error):
     messages = {
+        "storage_error": "Crate could not write to its temporary storage. The server needs attention; your video link may still be valid.",
         "host_blocked": "The source blocked this server's request. Try again later or use a download provided by the creator.",
         "sign_in_required": "This source requires sign-in or age verification. This public service can only download media available without an account.",
         "source_forbidden": "The source refused access to its media file (403). Try a fresh public link or a download provided by the creator.",
@@ -193,6 +203,9 @@ def run(url, output_format, directory, max_bytes=0, max_duration=0, quality="bes
         "noplaylist": True, "playlistend": 1, "lazy_playlist": True,
         "extract_flat": "in_playlist", "match_filter": check_metadata,
         "outtmpl": str(directory / "source.%(ext)s"), "restrictfilenames": True,
+        # Absolute outtmpl and TMPDIR do not control yt-dlp's format probes.
+        # Without paths.temp it writes probe files in the read-only release.
+        "paths": {"home": str(directory.resolve()), "temp": str(directory.resolve())},
         "windowsfilenames": True, "cachedir": False, "proxy": "", "socket_timeout": 20,
         "retries": 2, "fragment_retries": 2, "extractor_retries": 1,
         "skip_unavailable_fragments": False, "concurrent_fragment_downloads": 1,

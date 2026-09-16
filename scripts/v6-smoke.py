@@ -81,7 +81,7 @@ def main() -> int:
         assert health["status"] == "ok" and health["runtime"] == "crate-v6" and health["workers"] == 3
         client.get("/api/session").raise_for_status()
         caps = client.get("/api/capabilities").raise_for_status().json()
-        assert caps["version"] == "6.1.0" and caps["features"]["uploads"] is True
+        assert caps["version"] == "6.1.1" and caps["features"]["uploads"] is True
         print("PASS health       ", health["version"], health["build"], "workers=3")
 
         with tempfile.TemporaryDirectory(prefix="crate-v6-smoke-") as raw:

@@ -5,6 +5,13 @@ from app.version import version_payload
 
 _RELEASES = [
     {
+        "version": "6.1.1", "date": "2026-09-16", "commit": None,
+        "summary": "Reliable video downloads with writable format-probe storage and accurate local error reporting.",
+        "features": [],
+        "fixes": ["temporary format probes in job storage", "isolated preview scratch space", "local storage error classification"],
+        "rollback": "6.1.0",
+    },
+    {
         "version": "6.1.0", "date": "2026-09-15", "commit": None,
         "summary": "RX 6700 XT GPU-worker acceleration for H.264 and HEVC with automatic software fallback.",
         "features": ["remote GPU worker", "H.264 VAAPI", "HEVC VAAPI", "admin GPU health"],
