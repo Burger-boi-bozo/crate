@@ -30,7 +30,7 @@ ALLOWED_HOOK_EVENTS = {"job.ready", "job.failed", "batch.complete"}
 
 class SettingPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    values: dict[str, bool | int | float] = Field(min_length=1, max_length=20)
+    values: dict[str, bool | int | float | str] = Field(min_length=1, max_length=20)
 
 
 class RetentionRequest(BaseModel):
@@ -213,7 +213,7 @@ def install(app, queue, config, key):
         except Exception:
             ytdlp = "unavailable"
         remote_gpu = await gpu_worker_health(config)
-        return {"hardware": hardware_capabilities(), "gpu_worker": remote_gpu, "ffmpeg": ffmpeg[:160], "yt_dlp": ytdlp[:80],
+        return {"hardware": hardware_capabilities(), "gpu_worker": remote_gpu, "processor_priority": config.processor_priority, "ffmpeg": ffmpeg[:160], "yt_dlp": ytdlp[:80],
                 "formats": ["mp4", "mp3", "mkv", "mka", "m4a", "opus", "webm", "flac", "wav", "aac", "gif", "webp"]}
 
     @app.post("/api/admin/tokens", status_code=201)

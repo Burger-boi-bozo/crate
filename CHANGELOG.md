@@ -9,6 +9,9 @@ All notable production changes to Crate are recorded here.
 - H.264 and HEVC transcodes can offload from the 3-vCPU Crate VM to AMD VAAPI/VCN.
 - The controller automatically falls back to the proven software encoder when the worker is offline, busy, unsupported, or explicitly disabled.
 - GPU worker state is visible only in the authenticated admin capabilities view.
+- Added an admin-only **Processor priority** selector: **GPU preferred** offloads eligible H.264/HEVC jobs; **CPU preferred** keeps transcoding on VM 101.
+- Fixed GPU token-file traversal permissions while keeping the main environment and admin credential root-only.
+- Added controller/worker version compatibility checks, conservative VAAPI capability detection, and stale worker-job cleanup.
 - The public Crate service never receives hypervisor access or direct PCI access.
 
 ### Validation

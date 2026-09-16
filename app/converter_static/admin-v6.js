@@ -32,9 +32,15 @@ function v6RenderSettings(values) {
   for (const [key, value] of Object.entries(v6AdminSettings)) {
     const label = document.createElement('label'); label.textContent = key.replaceAll('_',' ');
     let input;
-    if (typeof value === 'boolean') { input = document.createElement('input'); input.type='checkbox'; input.checked=value; }
-    else { input = document.createElement('input'); input.type='number'; input.value=String(value); input.step=Number.isInteger(value)?'1':'0.1'; }
-    input.dataset.setting = key; label.append(input); root.append(label);
+    if (key === 'processor_priority') {
+      input = document.createElement('select');
+      for (const [optionValue, optionLabel] of [['gpu','GPU preferred'],['cpu','CPU preferred']]) {
+        const option=document.createElement('option'); option.value=optionValue; option.textContent=optionLabel; option.selected=value===optionValue; input.append(option);
+      }
+      const help=document.createElement('small'); help.textContent='GPU preferred offloads eligible H.264/HEVC jobs to the RX 6700 XT. CPU preferred keeps transcoding on VM 101.'; label.append(input,help);
+    } else if (typeof value === 'boolean') { input = document.createElement('input'); input.type='checkbox'; input.checked=value; label.append(input); }
+    else { input = document.createElement('input'); input.type='number'; input.value=String(value); input.step=Number.isInteger(value)?'1':'0.1'; label.append(input); }
+    input.dataset.setting = key; root.append(label);
   }
 }
 
@@ -60,6 +66,7 @@ function v6RenderCapabilities(data) {
   const gpu=data.gpu_worker || {};
   const gpuDetail=!gpu.configured ? 'not configured' : (!gpu.compatible && gpu.version ? `${gpu.worker || 'remote worker'} · v${gpu.version} · controller mismatch` : (gpu.available ? `${gpu.worker || 'remote worker'} · v${gpu.version || '?'} · ${(gpu.video_codecs || []).join('/')} · ready` : `configured · unavailable${gpu.error ? ' · '+gpu.error : ''}`));
   root.append(v6TextRow('GPU worker', gpuDetail));
+  root.append(v6TextRow('Processor priority', data.processor_priority === 'cpu' ? 'CPU preferred' : 'GPU preferred'));
   root.append(v6TextRow('Outputs', (data.formats || []).join(', ')));
 }
 
@@ -162,7 +169,7 @@ $('#save-settings')?.addEventListener('click', async event => {
   const button=event.currentTarget; button.disabled=true;
   try {
     const values={};
-    for (const input of document.querySelectorAll('[data-setting]')) values[input.dataset.setting]=input.type==='checkbox'?input.checked:Number(input.value);
+    for (const input of document.querySelectorAll('[data-setting]')) values[input.dataset.setting]=input.type==='checkbox'?input.checked:(input.tagName==='SELECT'?input.value:Number(input.value));
     await adminApi('/api/admin/settings',{method:'PATCH',body:JSON.stringify({values})}); await refreshAdmin(); await v6LoadAdmin();
   } catch (error) { alert(error.message); } finally { button.disabled=false; }
 });

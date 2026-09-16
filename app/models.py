@@ -77,6 +77,7 @@ class Config:
     gpu_worker_url: str = field(default_factory=lambda: os.getenv("CRATE_GPU_WORKER_URL", "").rstrip("/"))
     gpu_worker_token: str = field(default_factory=lambda: env_secret("CRATE_GPU_WORKER_TOKEN", "CRATE_GPU_WORKER_TOKEN_FILE", "/etc/crate/gpu-worker-token"))
     gpu_worker_timeout: int = field(default_factory=lambda: env_int("CRATE_GPU_WORKER_TIMEOUT", 3600, 60, 14400))
+    processor_priority: str = field(default_factory=lambda: os.getenv("CRATE_PROCESSOR_PRIORITY", "gpu").strip().lower() if os.getenv("CRATE_PROCESSOR_PRIORITY", "gpu").strip().lower() in {"cpu", "gpu"} else "gpu")
     cache_reuse: bool = field(default_factory=lambda: env_bool("CRATE_CACHE_REUSE", True))
     max_bytes: int = 0
     max_work_bytes: int = 0

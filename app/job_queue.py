@@ -37,6 +37,7 @@ RUNTIME_SETTINGS = {
     "max_load_ratio": (0.5, 8.0), "min_free_bytes": (0, 10 * 1024 ** 4),
     "min_available_memory": (0, 128 * 1024 ** 3), "ttl": (60, 30 * 86400),
     "max_auto_retries": (0, 5), "cache_reuse": (False, True),
+    "processor_priority": ("cpu", "gpu"),
 }
 
 
@@ -80,6 +81,8 @@ class Queue:
             low, high = RUNTIME_SETTINGS[key]
             if isinstance(low, bool):
                 setattr(self.config, key, bool(value))
+            elif isinstance(low, str):
+                if str(value) in {low, high}: setattr(self.config, key, str(value))
             elif isinstance(low, int) and not isinstance(low, bool):
                 try: setattr(self.config, key, max(low, min(int(value), int(high))))
                 except (TypeError, ValueError): pass
@@ -93,6 +96,10 @@ class Queue:
         low, high = RUNTIME_SETTINGS[key]
         if isinstance(low, bool):
             value = bool(value)
+        elif isinstance(low, str):
+            value = str(value)
+            if value not in {low, high}:
+                raise HTTPException(422, f"{key} must be one of: {low}, {high}.")
         elif isinstance(low, int) and not isinstance(low, bool):
             value = max(low, min(int(value), int(high)))
         else:

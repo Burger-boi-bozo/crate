@@ -84,7 +84,15 @@ def test_private_v6_admin_controls(tmp_path, monkeypatch):
                      "/api/admin/metrics/timeseries", "/api/admin/diagnostics", "/api/admin/backup"):
             assert client.get(path).status_code == 401
         login_admin(client)
-        assert client.get("/api/admin/settings").status_code == 200
+        settings = client.get("/api/admin/settings")
+        assert settings.status_code == 200
+        assert settings.json()["values"]["processor_priority"] == "gpu"
+        changed = client.patch("/api/admin/settings", headers=HEADERS, json={"values": {"processor_priority": "cpu"}})
+        assert changed.status_code == 200
+        assert changed.json()["values"]["processor_priority"] == "cpu"
+        assert client.get("/api/admin/capabilities").json()["processor_priority"] == "cpu"
+        invalid = client.patch("/api/admin/settings", headers=HEADERS, json={"values": {"processor_priority": "banana"}})
+        assert invalid.status_code == 422
         assert client.get("/api/admin/storage").status_code == 200
         assert client.get("/api/admin/security").json()["session_ttl"] > 0
         assert client.get("/api/admin/deployment").json()["current"]["version"] == "6.1.0"
@@ -170,12 +178,14 @@ def test_persistent_batch_and_runtime_settings(tmp_path):
     bodies = [Submission(url=f"https://example.com/{name}.mp4") for name in ("a", "b")]
     batch_id, jobs = queue.submit_batch("owner", bodies)
     queue.update_setting("workers", 3)
+    queue.update_setting("processor_priority", "cpu")
     queue.save()
-    restored = Queue(Config(data_dir=tmp_path, workers=1))
+    restored = Queue(Config(data_dir=tmp_path, workers=1, processor_priority="gpu"))
     restored.store.initialize(); restored.jobs = restored.store.load_jobs(); restored.batches = restored.store.load_batches(); restored.apply_saved_settings()
     assert batch_id in restored.batches
     assert len(restored.batches[batch_id]["job_ids"]) == 2
     assert restored.config.workers == 3
+    assert restored.config.processor_priority == "cpu"
 
 
 def test_fast_codec_args_for_small_server(tmp_path, monkeypatch):
@@ -212,6 +222,9 @@ def test_blue_green_deploy_and_resource_tuning_are_pinned():
     assert "/opt/crate-releases" in deploy
     assert "/opt/crate-current" in deploy
     assert "MemoryMax=3200M" in deploy
+    for text in (deploy, bootstrap):
+        assert "install -d -o root -g crate -m 710 /etc/crate" in text
+    assert "CRATE_PROCESSOR_PRIORITY=gpu" in bootstrap
 
 
 def test_admin_diagnostics_backup_and_restore(tmp_path, monkeypatch):
@@ -248,6 +261,7 @@ def test_v6_artifacts_are_present_and_exclusions_stay_excluded():
     assert "notifications" not in json.dumps(manifest).lower()
     assert "qr" not in public.lower()
     assert "/api/admin/settings" in admin and "/api/admin/backup" in admin_html
+    assert "GPU preferred" in admin and "CPU preferred" in admin and "processor_priority" in admin
     assert set(extension["permissions"]) == {"activeTab", "storage"}
     assert Path("tools/crate-cli.py").is_file()
     assert Path("docs/automation/PHONE_AUTOMATION.md").is_file()

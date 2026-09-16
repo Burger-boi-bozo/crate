@@ -6,7 +6,7 @@
   "scripts": {
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
-    "test:ui": "node tests/converter-ui.cjs"
+    "test:ui": "node tests/converter-ui.cjs && node tests/admin-ui.cjs"
   },
   "dependencies": {
     "@cloudflare/containers": "^0.3.7"

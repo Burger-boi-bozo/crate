@@ -13,7 +13,7 @@ Current release: **v6.1.0**
 - Adaptive CPU/RAM/disk-aware scheduling, user/admin priorities, learned ETA history, automatic retries, fallback streams, resumable work, and completed-output reuse.
 - Link previews with source metadata, estimated size, and format/quality recommendations.
 - Private admin control room with queue/storage/config controls, metrics, provider health, audit logs, passkeys, API tokens, webhooks, diagnostics, backup/restore, and deployment history.
-- Optional RX 6700 XT GPU worker for H.264/HEVC VAAPI transcoding with automatic software fallback.
+- Optional RX 6700 XT GPU worker for H.264/HEVC VAAPI transcoding with automatic software fallback; admins can switch between **GPU preferred** and **CPU preferred** routing at runtime.
 - Automatic deletion of completed files after **24 hours** (`CRATE_TTL=86400`).
 - PWA install/share-target support, local uploads, temporary share links, CLI/browser-extension automation, and Cloudflare Tunnel deployment without router ports.
 
