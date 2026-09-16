@@ -34,17 +34,48 @@ def available_encoders() -> set[str]:
     return encoders
 
 
+def _dri_vendor() -> str:
+    try:
+        return Path("/sys/class/drm/renderD128/device/vendor").read_text().strip().lower()
+    except OSError:
+        return ""
+
+
+def _vaapi_encode_codecs() -> set[str]:
+    if not Path("/dev/dri/renderD128").exists() or not shutil.which("vainfo"):
+        return set()
+    try:
+        result = subprocess.run(["vainfo", "--display", "drm", "--device", "/dev/dri/renderD128"],
+                                capture_output=True, text=True, timeout=10, check=True)
+    except Exception:
+        return set()
+    text = result.stdout + result.stderr
+    codecs = set()
+    for line in text.splitlines():
+        if "VAEntrypointEnc" not in line:
+            continue
+        if "VAProfileH264" in line: codecs.add("h264")
+        elif "VAProfileHEVC" in line: codecs.add("hevc")
+        elif "VAProfileAV1" in line: codecs.add("av1")
+        elif "VAProfileVP9" in line: codecs.add("vp9")
+    return codecs
+
+
 def hardware_capabilities() -> dict:
     encoders = available_encoders()
     has_dri = Path("/dev/dri/renderD128").exists()
     has_nvidia = Path("/dev/nvidia0").exists() or shutil.which("nvidia-smi") is not None
-    candidates = {
-        "h264": [name for name, ok in (("h264_nvenc", has_nvidia), ("h264_vaapi", has_dri), ("h264_qsv", has_dri)) if ok and name in encoders],
-        "hevc": [name for name, ok in (("hevc_nvenc", has_nvidia), ("hevc_vaapi", has_dri), ("hevc_qsv", has_dri)) if ok and name in encoders],
-        "av1": [name for name, ok in (("av1_nvenc", has_nvidia), ("av1_vaapi", has_dri), ("av1_qsv", has_dri)) if ok and name in encoders],
-        "vp9": [name for name, ok in (("vp9_vaapi", has_dri), ("vp9_qsv", has_dri)) if ok and name in encoders],
-    }
-    return {"available": any(candidates.values()), "encoders": candidates, "dri": has_dri, "nvidia": has_nvidia}
+    vendor = _dri_vendor()
+    vaapi = _vaapi_encode_codecs() if has_dri else set()
+    intel = vendor == "0x8086"
+    candidates = {}
+    for codec in ("h264", "hevc", "av1", "vp9"):
+        values = []
+        for name, ok in ((f"{codec}_nvenc", has_nvidia), (f"{codec}_vaapi", codec in vaapi), (f"{codec}_qsv", intel)):
+            if ok and name in encoders: values.append(name)
+        candidates[codec] = values
+    return {"available": any(candidates.values()), "encoders": candidates, "dri": has_dri,
+            "dri_vendor": vendor or None, "vaapi_encode_codecs": sorted(vaapi), "nvidia": has_nvidia}
 
 
 def ffmpeg_threads() -> str:

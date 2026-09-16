@@ -2,6 +2,19 @@
 
 All notable production changes to Crate are recorded here.
 
+## 6.1.0 — 2026-09-15
+
+### GPU acceleration
+- Added an authenticated internal GPU-worker path for the Radeon RX 6700 XT.
+- H.264 and HEVC transcodes can offload from the 3-vCPU Crate VM to AMD VAAPI/VCN.
+- The controller automatically falls back to the proven software encoder when the worker is offline, busy, unsupported, or explicitly disabled.
+- GPU worker state is visible only in the authenticated admin capabilities view.
+- The public Crate service never receives hypervisor access or direct PCI access.
+
+### Validation
+- RX 6700 XT VAAPI confirmed H.264/HEVC encode on Navi 22.
+- 8-second 1080p30 benchmark: H.264 GPU 2.10s vs CPU 2.19s; HEVC GPU 1.29s vs CPU 7.73s.
+
 ## 6.0.0 — 2026-09-14
 
 ### Added

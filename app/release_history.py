@@ -5,7 +5,14 @@ from app.version import version_payload
 
 _RELEASES = [
     {
-        "version": "6.0.0", "date": "2026-09-14", "commit": None,
+        "version": "6.1.0", "date": "2026-09-15", "commit": None,
+        "summary": "RX 6700 XT GPU-worker acceleration for H.264 and HEVC with automatic software fallback.",
+        "features": ["remote GPU worker", "H.264 VAAPI", "HEVC VAAPI", "admin GPU health"],
+        "fixes": ["safe fallback when GPU worker is busy or offline"],
+        "rollback": "6.0.0",
+    },
+    {
+        "version": "6.0.0", "date": "2026-09-15", "commit": "2e31c2b5aca84c294ebe1cd7006336449b03ec93",
         "summary": "Advanced media workflows, integrations, PWA support, and a private operator control room.",
         "features": ["advanced conversion", "uploads", "subtitles", "sharing", "API tokens", "webhooks", "backup/restore"],
         "fixes": ["adaptive scheduling", "resumable work", "automatic retry and fallback"],

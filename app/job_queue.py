@@ -311,7 +311,7 @@ class Queue:
         return max(1, round(duration * median))
 
     def public(self, job):
-        hidden = {"owner", "path", "serves", "paused_from", "source_path", "subtitle_path", "resume_work", "fingerprint"}
+        hidden = {"owner", "path", "serves", "paused_from", "source_path", "subtitle_path", "resume_work", "fingerprint", "gpu_worker"}
         data = {key: value for key, value in job.items() if key not in hidden}
         data["queue_position"] = self.queue_position(job["id"])
         data["suggestion"] = ERROR_SUGGESTIONS.get(job.get("error_code"))

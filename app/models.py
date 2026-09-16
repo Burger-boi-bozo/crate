@@ -33,6 +33,19 @@ def env_float(name: str, default: float, minimum: float = 0.0, maximum: float | 
     return min(value, maximum) if maximum is not None else value
 
 
+def env_secret(name: str, file_env: str, default_file: str = "") -> str:
+    raw = os.getenv(name, "").strip()
+    if raw:
+        return raw
+    path = os.getenv(file_env, default_file).strip()
+    if not path:
+        return ""
+    try:
+        return Path(path).read_text().strip()
+    except OSError:
+        return ""
+
+
 def env_bool(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -61,6 +74,9 @@ class Config:
     admin_session_ttl: int = field(default_factory=lambda: env_int("CRATE_ADMIN_SESSION_TTL", 12 * 3600, 300, 30 * 86400))
     admin_trusted_ips: str = field(default_factory=lambda: os.getenv("CRATE_ADMIN_TRUSTED_IPS", ""))
     webhook_timeout: int = field(default_factory=lambda: env_int("CRATE_WEBHOOK_TIMEOUT", 10, 2, 30))
+    gpu_worker_url: str = field(default_factory=lambda: os.getenv("CRATE_GPU_WORKER_URL", "").rstrip("/"))
+    gpu_worker_token: str = field(default_factory=lambda: env_secret("CRATE_GPU_WORKER_TOKEN", "CRATE_GPU_WORKER_TOKEN_FILE", "/etc/crate/gpu-worker-token"))
+    gpu_worker_timeout: int = field(default_factory=lambda: env_int("CRATE_GPU_WORKER_TIMEOUT", 3600, 60, 14400))
     cache_reuse: bool = field(default_factory=lambda: env_bool("CRATE_CACHE_REUSE", True))
     max_bytes: int = 0
     max_work_bytes: int = 0
