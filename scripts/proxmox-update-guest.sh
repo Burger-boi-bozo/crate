@@ -41,7 +41,7 @@ set_env() {
 }
 
 ensure_runtime_env() {
-  install -d -m 700 /etc/crate
+  install -d -o root -g crate -m 710 /etc/crate
   set_env CRATE_BUILD_SHA "$ref"
   set_env CRATE_TTL 86400
   set_env CRATE_WORKERS 3

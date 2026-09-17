@@ -137,3 +137,27 @@ def test_worker_cleans_stale_directories(monkeypatch, tmp_path):
     server._cleanup_stale(max_age=3600)
     assert not stale.exists()
     assert current.exists()
+
+
+@pytest.mark.asyncio
+async def test_cpu_priority_bypasses_gpu_worker(monkeypatch, tmp_path):
+    from app import job_worker
+
+    async def should_not_run(config):
+        raise AssertionError("GPU health should not be queried when CPU is preferred")
+
+    monkeypatch.setattr(job_worker, "gpu_health", should_not_run)
+    queue = SimpleNamespace(
+        config=SimpleNamespace(gpu_worker_url="http://worker", gpu_worker_token="secret", processor_priority="cpu"),
+        event=lambda *args, **kwargs: None,
+    )
+    source = tmp_path / "source.mp4"; source.write_bytes(b"source")
+    job = {"id": "j1", "format": "mp4", "options": {"hardware": "auto", "video_codec": "h264"}}
+    assert await job_worker.gpu_postprocess(queue, job, tmp_path, source, {}, {}, None) is None
+
+
+def test_processor_priority_environment(monkeypatch, tmp_path):
+    monkeypatch.setenv("CRATE_PROCESSOR_PRIORITY", "cpu")
+    assert Config(data_dir=tmp_path).processor_priority == "cpu"
+    monkeypatch.setenv("CRATE_PROCESSOR_PRIORITY", "invalid")
+    assert Config(data_dir=tmp_path).processor_priority == "gpu"

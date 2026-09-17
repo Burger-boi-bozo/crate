@@ -14,8 +14,8 @@ _RELEASES = [
     {
         "version": "6.1.0", "date": "2026-09-15", "commit": None,
         "summary": "RX 6700 XT GPU-worker acceleration for H.264 and HEVC with automatic software fallback.",
-        "features": ["remote GPU worker", "H.264 VAAPI", "HEVC VAAPI", "admin GPU health"],
-        "fixes": ["safe fallback when GPU worker is busy or offline"],
+        "features": ["remote GPU worker", "H.264 VAAPI", "HEVC VAAPI", "admin GPU health", "CPU/GPU priority selector"],
+        "fixes": ["safe fallback when GPU worker is busy or offline", "persistent GPU token permissions", "worker compatibility checks"],
         "rollback": "6.0.0",
     },
     {

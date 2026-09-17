@@ -29,7 +29,7 @@ git -C /opt/crate checkout --detach FETCH_HEAD
 python3 -m venv /opt/crate/.venv
 /opt/crate/.venv/bin/pip install -r /opt/crate/requirements.txt
 /opt/crate/.venv/bin/python /opt/crate/scripts/check_runtime.py
-install -d -m 700 /etc/crate
+install -d -o root -g crate -m 710 /etc/crate
 crate_secret="$(python3 -c 'import secrets; print(secrets.token_urlsafe(48))')"
 crate_admin_password="password"
 cat > /etc/crate/environment <<EOF
@@ -45,6 +45,7 @@ CRATE_HEAVY_WORKERS=1
 CRATE_FRAGMENT_CONCURRENCY=3
 CRATE_DOWNLOAD_RETRIES=4
 CRATE_FFMPEG_THREADS=2
+CRATE_PROCESSOR_PRIORITY=gpu
 CRATE_MIN_AVAILABLE_MEMORY=805306368
 CRATE_MAX_LOAD_RATIO=1.25
 CRATE_STALL_TIMEOUT=300

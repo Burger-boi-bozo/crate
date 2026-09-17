@@ -13,3 +13,7 @@ The host owns the Radeon with `amdgpu`. Do not simultaneously attach the whole P
 Current RX 6700 XT policy: H.264 and HEVC are GPU-eligible. AV1/VP9 remain on the tested software path because `vainfo` advertises encode entrypoints for H.264/HEVC on this Navi 22 card.
 
 The worker runs as the unprivileged `crategpu` account with membership in the container's `render` group. Proxmox device passthrough is configured as `dev0: path=/dev/dri/renderD128,gid=992,mode=0660` on this host.
+
+Admin routing is controlled by **Processor priority** under `/admin` → Runtime settings. `GPU preferred` is the default and offloads eligible H.264/HEVC jobs; `CPU preferred` bypasses the worker without disabling or reconfiguring it. The setting is persisted in Crate SQLite and takes effect for newly processed jobs immediately.
+
+On the controller, `/etc/crate` is `0710 root:crate`, `/etc/crate/environment` remains `0600 root:root`, and `/etc/crate/gpu-worker-token` is `0640 root:crate`. This grants the Crate service traverse/read access only to the dedicated GPU token without exposing the other root-owned secrets.

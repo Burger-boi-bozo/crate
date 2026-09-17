@@ -120,6 +120,8 @@ async def preview_metadata(job: dict, directory: Path):
 
 
 async def gpu_postprocess(queue, job: dict, directory: Path, source: Path, runner_result: dict, metadata: dict, subtitle: Path | None):
+    if getattr(queue.config, "processor_priority", "gpu") != "gpu":
+        return None
     if not gpu_configured(queue.config) or not gpu_eligible(job):
         return None
     status = await gpu_health(queue.config)
