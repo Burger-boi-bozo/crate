@@ -36,3 +36,6 @@
 .transcribe-link-form small{line-height:1.55;color:#647268}
 .transcribe-status.status-waiting_download{background:#e8effe;color:#245c9c}
 @media(max-width:500px){.transcribe-link-controls{align-items:stretch}.transcribe-link-controls button{width:100%;margin:0}.transcribe-link-form{padding:1rem}}
+
+.top-right .transcribe-nav{display:inline-flex;align-items:center;margin-right:.7rem;color:inherit;text-decoration:none;font-weight:700;font-size:.85rem;border-bottom:1px solid currentColor}
+.top-right .transcribe-nav:hover{color:#367346}
