@@ -279,3 +279,5 @@ select:focus-visible, textarea:focus-visible, input:focus-visible { outline: 2px
   .studio-tab,.primary { transition: none; }
   .studio-panel { animation: none; }
 }
+
+.studio-tabs{scroll-margin-top:18px}
