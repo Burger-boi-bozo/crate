@@ -29,6 +29,9 @@
     '<div class="transcribe-heading"><h3>Transcription queue</h3><button type="button" id="transcribe-refresh" class="text-button">Refresh</button></div>' +
     '<div id="transcribe-history" aria-live="polite"><p class="transcribe-description">Loading transcription jobs...</p></div>';
   host.insertAdjacentElement("afterend", section);
+  if (window.location.hash === "#transcribe") {
+    window.addEventListener("load", () => section.scrollIntoView({block: "start"}), {once: true});
+  }
 
   const $ = (sel) => section.querySelector(sel);
   const history = $("#transcribe-history");
