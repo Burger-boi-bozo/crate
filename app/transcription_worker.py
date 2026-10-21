@@ -137,7 +137,8 @@ def process(row, model):
                detected_language=detected, segment_count=len(segments),
                message="Transcript ready" if segments else "Completed; no speech detected")
         if row["uploaded"]:
-            source.unlink(missing_ok=True)
+            try: source.unlink(missing_ok=True)
+            except OSError as exc: print("upload cleanup warning:", str(exc)[:150], flush=True)
     finally:
         wav.unlink(missing_ok=True)
 
@@ -175,7 +176,8 @@ def main():
                        message="Transcription failed")
                 print("Failed:", row["id"], type(exc).__name__, message, flush=True)
                 if row["uploaded"]:
-                    Path(row["source_path"]).unlink(missing_ok=True)
+                    try: Path(row["source_path"]).unlink(missing_ok=True)
+                    except OSError as cleanup: print("upload cleanup warning:", str(cleanup)[:150], flush=True)
     finally:
         stop.set()
         thread.join(timeout=2)
