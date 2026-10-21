@@ -1,7 +1,7 @@
 # Crate transcription
 
 Crate has a same-origin speech-to-text interface at `/#transcribe`.
-It accepts local video/audio uploads and completed Crate download jobs.
+It accepts public media URLs, local video/audio uploads, and completed Crate download jobs. The link path submits a low-priority audio job to Crate's existing downloader and automatically transcribes the finished file, including when the browser is closed.
 It extracts the primary audio stream with FFmpeg, recognizes speech using
 faster-whisper locally, and makes four files available:
 
@@ -45,3 +45,20 @@ No arbitrary server filesystem paths are accepted. The upload limit is 4 GB
 and the maximum media duration is eight hours. GIF/WebP files without audio
 are rejected by the worker with an explanatory message. This is speech-to-text,
 not a translation or speaker-diarization service.
+
+## Pasted URLs
+
+POST `/api/transcriptions/from-url` with `{"url":"https://...","language":"auto"}`.
+The URL passes Crate's existing public-URL validation and downloader, including
+its private-address protections and source limitations. The response immediately
+returns a persisted transcript job in `waiting_download` state. The separate
+speech worker checks the Crate job database without modifying it; when the audio
+is ready, it copies that audio to its isolated temporary directory, runs local
+speech recognition and serves TXT/SRT/VTT/JSON outputs from the normal owner-
+scoped transcript endpoints. Reusing a completed download, upload transcription,
+and manual from-job transcription continue to work. If a provider blocks access
+or a download fails, the transcript job reports the failure rather than hanging.
+
+The worker's read-only access to Crate's job store defaults to
+`/var/lib/crate/state/crate.db`, customizable with `CRATE_DOWNLOADER_DB`.
+The speech model does not make external inference calls.
