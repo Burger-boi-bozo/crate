@@ -4,7 +4,7 @@ import time
 
 from fastapi.responses import JSONResponse
 
-STREAMING_MUTATIONS = {"/api/uploads", "/api/admin/restore"}
+STREAMING_MUTATIONS = {"/api/uploads", "/api/admin/restore", "/api/transcriptions/upload"}
 
 
 def install(app):
