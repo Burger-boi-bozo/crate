@@ -8,7 +8,14 @@
   section.setAttribute("aria-labelledby", "transcript-heading");
   section.innerHTML =
     '<div class="section-heading"><div><span class="step-number">03 / TRANSCRIBE</span><h2 id="transcript-heading">Speech to text</h2></div><span class="transcribe-pill">Local AI</span></div>' +
-    '<p class="transcribe-description">Transcribe audio or video files without uploading them to a third-party AI service. Download searchable text or timestamped subtitles.</p>' +
+    '<p class="transcribe-description">Paste a supported media link or upload a file. Crate retrieves the audio, transcribes it locally, and creates timestamped subtitles automatically.</p>' +
+    '<form id="transcribe-url-form" class="transcribe-link-form"><h3>Transcribe a media link</h3>' +
+      '<label for="transcribe-url">Paste a YouTube, video, podcast, or direct audio link</label>' +
+      '<input id="transcribe-url" type="url" inputmode="url" autocomplete="url" placeholder="https://www.youtube.com/watch?v=..." maxlength="2048" required>' +
+      '<div class="transcribe-link-controls"><label for="transcribe-url-lang">Language</label>' +
+      '<select id="transcribe-url-lang"><option value="auto">Auto-detect</option><option value="en">English</option><option value="es">Spanish</option><option value="fr">French</option><option value="de">German</option><option value="pt">Portuguese</option><option value="it">Italian</option><option value="ja">Japanese</option><option value="ko">Korean</option><option value="zh">Chinese</option><option value="ru">Russian</option><option value="ar">Arabic</option><option value="hi">Hindi</option></select>' +
+      '<button class="primary" type="submit">Transcribe link</button></div>' +
+      '<small>Crate downloads the audio in the background. Results stay in your transcription queue if you close this page.</small></form>' +
     '<div class="transcribe-panels">' +
       '<form id="transcribe-upload-form" class="transcribe-panel"><h3>Upload media</h3>' +
         '<label for="transcribe-file">Audio or video file</label><input type="file" id="transcribe-file" accept="audio/*,video/*,.mkv,.mka,.m4b,.opus,.flac,.aac,.webm,.avi,.mov,.gif,.webp" required>' +
@@ -65,7 +72,7 @@
   function render(jobs) {
     history.replaceChildren();
     if (!jobs.length) {
-      history.append(item("p", "transcribe-description", "No transcription jobs yet. Upload media or select a completed Crate download."));
+      history.append(item("p", "transcribe-description", "No transcriptions yet. Paste a media URL, upload a file, or select a completed download."));
       return;
     }
     for (const job of jobs) {
@@ -73,11 +80,11 @@
       const top = item("div", "transcribe-job-top");
       const heading = item("strong", "", job.filename);
       heading.title = job.filename;
-      top.append(heading, item("span", "transcribe-status status-" + job.status, job.status));
+      top.append(heading, item("span", "transcribe-status status-" + job.status, job.status === "waiting_download" ? "Downloading media" : job.status));
       wrap.append(top);
       wrap.append(item("p", "transcribe-job-info", formatDate(job.created_at) + " · " +
         (job.detected_language || job.language).toUpperCase() + " · " + job.segment_count + " segments"));
-      if (["queued", "extracting", "transcribing"].includes(job.status)) {
+      if (["waiting_download", "queued", "extracting", "transcribing"].includes(job.status)) {
         const progress = item("progress", "transcribe-progress");
         progress.max = 100;
         progress.value = job.progress;
@@ -95,7 +102,7 @@
         }
         wrap.append(actions);
       }
-      if (["completed", "failed", "queued"].includes(job.status)) {
+      if (["completed", "failed", "queued", "waiting_download"].includes(job.status)) {
         const remove = item("button", "text-button transcribe-remove", "Remove");
         remove.type = "button";
         remove.addEventListener("click", async () => {
@@ -118,6 +125,23 @@
       render(jobs);
     } catch (e) { inform(e.message, true); }
   }
+  $("#transcribe-url-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const button = event.currentTarget.querySelector("button[type=submit]");
+    const url = $("#transcribe-url").value.trim();
+    if (!url) return;
+    button.disabled = true;
+    inform("Sending link to Crate's media downloader...");
+    try {
+      await api("/api/transcriptions/from-url", {method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({url, language: $("#transcribe-url-lang").value})});
+      $("#transcribe-url").value = "";
+      inform("Link queued. Crate will download and transcribe it automatically.");
+      await load();
+    } catch (e) { inform(e.message, true); }
+    finally { button.disabled = false; }
+  });
   $("#transcribe-upload-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const button = event.currentTarget.querySelector("button[type=submit]");
