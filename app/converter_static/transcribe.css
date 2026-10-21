@@ -1,0 +1,26 @@
+.transcript-section{margin:3rem 0 2rem;padding:1.6rem;background:var(--card,#fff);border:1px solid #d9ded7;border-radius:18px}
+.transcript-section .section-heading{display:flex;justify-content:space-between;align-items:center;gap:1rem}
+.transcribe-pill{font-size:.75rem;font-weight:700;letter-spacing:.06em;border:1px solid #c7d9c5;border-radius:999px;padding:.3rem .65rem;color:#24653c;background:#ebf6eb}
+.transcribe-description{font-size:.93rem;color:#647068;line-height:1.65;margin:.75rem 0 1.25rem}
+.transcribe-panels{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,285px),1fr));gap:1rem;margin:1.2rem 0}
+.transcribe-panel{padding:1.2rem;border:1px solid #dae0da;border-radius:14px;display:flex;flex-direction:column;gap:.65rem;min-width:0}
+.transcribe-panel h3{font-size:1rem;margin:0 0 .5rem}
+.transcribe-panel label{font-weight:600;font-size:.83rem}
+.transcribe-panel input[type=file],.transcribe-panel select{border:1px solid #cdd6cc;border-radius:9px;padding:.65rem;max-width:100%;width:100%;background:#fff;color:#232b22}
+.transcribe-panel button{margin-top:auto}
+.transcribe-heading{display:flex;justify-content:space-between;align-items:center;margin:1.5rem 0 .7rem}
+.transcribe-heading h3{margin:0;font-size:1.05rem}
+.transcribe-job{border-top:1px solid #dfe5dc;padding:1.1rem 0}
+.transcribe-job-top{display:flex;justify-content:space-between;gap:1rem;align-items:center;flex-wrap:wrap}
+.transcribe-job-top strong{font-size:.94rem;overflow-wrap:anywhere}
+.transcribe-job-info{font-size:.82rem;color:#6d756b;margin:.4rem 0}
+.transcribe-status{font-size:.74rem;border-radius:999px;padding:.23rem .65rem;background:#edf0eb;text-transform:capitalize}
+.transcribe-status.status-completed{color:#217340;background:#e5f6e7}
+.transcribe-status.status-failed{color:#a22828;background:#fce8e8}
+.transcribe-progress{width:100%;height:11px;accent-color:#59845b}
+.transcribe-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}
+.transcribe-export{display:inline-block;padding:.5rem .75rem;border-radius:8px;background:#e6f0e3;color:#1d582e;text-decoration:none;font-weight:700;font-size:.8rem}
+.transcribe-export:hover{background:#d6e5d1}
+.transcribe-error{color:#a22727;font-size:.87rem;overflow-wrap:anywhere}
+.transcribe-remove{font-size:.78rem;padding:0;margin:.7rem 0 0}
+@media(max-width:650px){.transcript-section{padding:1.1rem;margin:2rem 0}.transcribe-panel{padding:1rem}}
