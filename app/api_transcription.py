@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
 import sqlite3
 import time
 import uuid
@@ -142,6 +143,8 @@ def install(app, queue, config, owner):
             with source.open("xb") as output:
                 while chunk := await file.read(1024 * 1024):
                     total += len(chunk)
+                    if shutil.disk_usage(ROOT).free < 2 * 1024 ** 3:
+                        raise HTTPException(507, "Insufficient disk space for transcription upload.")
                     if total > min(config.max_upload_bytes, 4 * 1024 ** 3):
                         raise HTTPException(413, "Transcription upload exceeds the 4 GB limit.")
                     output.write(chunk)
