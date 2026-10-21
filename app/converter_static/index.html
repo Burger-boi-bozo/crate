@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#eef2eb">
-  <meta name="description" content="Turn a public media link into a video or audio file with Crate.">
-  <title>Crate — A link. A file. Done.</title>
+  <meta name="description" content="Download videos, convert audio and transcribe media links with local AI in Crate Studio.">
+  <title>Crate Studio — Download &amp; Transcribe</title>
   <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml">
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="stylesheet" href="/assets/styles.css?v=60">
@@ -15,12 +15,16 @@
   <script src="/assets/preview.js?v=60" defer></script>
   <script src="/assets/version.js?v=60" defer></script>
   <script src="/assets/v6.js?v=60" defer></script>
+  <link rel="stylesheet" href="/assets/transcribe.css?v=3">
+  <script src="/assets/transcribe.js?v=3" defer></script>
+  <link rel="stylesheet" href="/assets/studio.css?v=1">
+  <script src="/assets/studio.js?v=2" defer></script>
 </head>
 <body>
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="/" aria-label="Crate home"><span class="brand-icon" aria-hidden="true">↧</span> crate<span class="brand-dot">.</span></a>
-      <div class="top-right"><span class="host-label">YOUR MEDIA, READY TO GO</span></div>
+      <div class="top-right"><a class="transcribe-nav" href="#transcribe">Transcribe</a><span class="host-label">YOUR MEDIA, READY TO GO</span></div>
     </header>
     <main>
       <section class="intro">
