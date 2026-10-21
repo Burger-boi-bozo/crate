@@ -17,6 +17,7 @@ from pathlib import Path
 ROOT = Path(os.getenv("CRATE_TRANSCRIPTS_DIR", "/var/lib/crate/transcriptions"))
 MODEL_NAME = os.getenv("CRATE_TRANSCRIBE_MODEL", "base")
 THREADS = max(1, min(4, int(os.getenv("CRATE_TRANSCRIBE_THREADS", "2"))))
+CRATE_DB = Path(os.getenv("CRATE_DOWNLOADER_DB", "/var/lib/crate/state/crate.db"))
 
 
 def connect():
@@ -49,6 +50,84 @@ def heartbeat(stop):
         except Exception as exc:
             print("heartbeat error:", type(exc).__name__, str(exc)[:150], flush=True)
         stop.wait(10)
+
+
+def reconcile_downloads():
+    """Advance persistent link jobs only after Crate reports a completed download.
+
+    Reads Crate's transactional job store; never mutates the downloader's jobs.
+    Copies source audio so transcription survives Crate's 24-hour cleanup.
+    """
+    with connect() as db:
+        waiting = [dict(row) for row in db.execute(
+            "SELECT * FROM transcripts WHERE status='waiting_download' ORDER BY created_at LIMIT 20")]
+    if not waiting:
+        return
+    if not CRATE_DB.is_file():
+        return
+    with sqlite3.connect(f"file:{CRATE_DB}?mode=ro", uri=True, timeout=5) as media_db:
+        media_db.row_factory = sqlite3.Row
+        for row in waiting:
+            ident = row["id"]
+            result = media_db.execute(
+                "SELECT payload FROM jobs WHERE id=? AND owner=?",
+                (row["download_job_id"], row["owner"])).fetchone()
+            if result is None:
+                if time.time() - row["created_at"] > 120:
+                    update(ident, status="failed", error="Media download expired or was removed.",
+                           message="Media download unavailable")
+                continue
+            try:
+                job = json.loads(result["payload"])
+                if not isinstance(job, dict):
+                    raise ValueError("Invalid downloader status")
+            except (ValueError, TypeError):
+                update(ident, status="failed", error="Could not read Crate downloader status",
+                       message="Download status error")
+                continue
+            state = job.get("status", "")
+            if state in ("failed", "cancelled", "expired"):
+                reason = str(job.get("error") or ("Crate download " + state))[:350]
+                update(ident, status="failed", error=reason, message="Media download failed")
+                continue
+            if state != "ready":
+                progress = min(9, max(0, int(float(job.get("progress") or 0) * .09)))
+                status_text = state.replace("_", " ") if state else "waiting"
+                update(ident, progress=progress,
+                       message="Downloading audio (" + status_text + ")")
+                continue
+            source = Path(str(job.get("path") or ""))
+            if not source.is_file():
+                if time.time() - row["created_at"] > 120:
+                    update(ident, status="failed", error="Crate's completed audio file is missing.",
+                           message="Downloaded media missing")
+                continue
+            try:
+                size = source.stat().st_size
+                if size == 0 or size > 4 * 1024 ** 3:
+                    raise ValueError("Downloaded media is empty or exceeds the 4 GB transcription limit.")
+                if shutil.disk_usage(ROOT).free < size + 2 * 1024 ** 3:
+                    raise ValueError("Insufficient free space for transcription audio.")
+                folder = ROOT / "downloads"
+                folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+                target = folder / (ident + ".mp3")
+                tmp = folder / (ident + ".partial")
+                try:
+                    shutil.copyfile(source, tmp)
+                    os.replace(tmp, target)
+                finally:
+                    tmp.unlink(missing_ok=True)
+                name = str(job.get("filename") or job.get("title") or row["filename"])[:180]
+                with connect() as db:
+                    db.execute("""UPDATE transcripts
+                                  SET status='queued',source_path=?,filename=?,progress=0,
+                                      error='',message='Audio downloaded; waiting for speech recognition',
+                                      updated_at=?
+                                  WHERE id=? AND status='waiting_download'""",
+                               (str(target), name, time.time(), ident))
+            except (OSError, ValueError) as exc:
+                update(ident, status="failed", error=str(exc)[:350],
+                       message="Could not prepare downloaded audio")
 
 
 def claim():
@@ -157,6 +236,10 @@ def main():
     print("Crate transcriber worker started with model", MODEL_NAME, flush=True)
     try:
         while True:
+            try:
+                reconcile_downloads()
+            except (OSError, sqlite3.Error, ValueError) as exc:
+                print("download reconciliation warning:", str(exc)[:250], flush=True)
             row = claim()
             if not row:
                 time.sleep(2)
