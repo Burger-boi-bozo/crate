@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-root = Path(tempfile.mkdtemp(prefix="crate-transcribe-smoke-"))
+root = Path(tempfile.mkdtemp(prefix="crate-transcribe-smoke-", dir="/var/tmp"))
 os.environ["CRATE_TRANSCRIPTS_DIR"] = str(root / "transcripts")
 os.environ["CRATE_DATA_DIR"] = str(root / "crate")
 os.environ["CRATE_SESSION_SECRET"] = "transcription-smoke-only"
