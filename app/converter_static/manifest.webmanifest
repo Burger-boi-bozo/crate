@@ -1,12 +1,41 @@
 {
   "name": "Crate",
   "short_name": "Crate",
-  "description": "Turn a public media link or local file into a downloadable media file.",
+  "description": "Download and convert video or audio, or transcribe media links and files with local speech recognition.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#eef2eb",
   "theme_color": "#184f3b",
-  "icons": [{"src":"/assets/favicon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}],
-  "share_target": {"action":"/?shared=1","method":"GET","params":{"title":"title","text":"text","url":"url"}}
+  "icons": [
+    {
+      "src": "/assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/?shared=1",
+    "method": "GET",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "shortcuts": [
+    {
+      "name": "Download media",
+      "short_name": "Download",
+      "url": "/#download",
+      "description": "Convert media URLs and local files"
+    },
+    {
+      "name": "Transcribe media",
+      "short_name": "Transcribe",
+      "url": "/#transcribe",
+      "description": "Turn media into transcripts and subtitles"
+    }
+  ]
 }
