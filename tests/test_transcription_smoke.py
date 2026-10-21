@@ -6,6 +6,7 @@ import os
 import subprocess
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 root = Path(tempfile.mkdtemp(prefix="crate-transcribe-smoke-"))
 os.environ["CRATE_TRANSCRIPTS_DIR"] = str(root / "transcripts")
@@ -39,4 +40,17 @@ with TestClient(app) as browser:
                         headers=headers).status_code == 404
     assert browser.delete("/api/transcriptions/" + tid, headers=headers).status_code == 204
     assert browser.get("/api/transcriptions/" + tid).status_code == 404
+    with patch.object(app.state.queue, "submit", return_value={"id": "mock-crate-link-42"}) as queued:
+        response = browser.post("/api/transcriptions/from-url",
+            json={"url": "https://example.com/recording.mp3", "language": "en"}, headers=headers)
+        assert response.status_code == 202, response.text
+        url_transcription = response.json()
+        assert url_transcription["status"] == "waiting_download"
+        assert url_transcription["download_job_id"] == "mock-crate-link-42"
+        assert queued.call_args.args[1].format == "mp3"
+        assert queued.call_args.args[1].priority == "low"
+        response = browser.post("/api/transcriptions/from-url",
+            json={"url": "http://127.0.0.1/private", "language": "en"}, headers=headers)
+        assert response.status_code == 422, response.text
+        assert browser.delete("/api/transcriptions/" + url_transcription["id"], headers=headers).status_code == 204
 print("Transcription API smoke test passed")
