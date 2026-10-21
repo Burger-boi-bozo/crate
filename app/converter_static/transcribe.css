@@ -24,3 +24,15 @@
 .transcribe-error{color:#a22727;font-size:.87rem;overflow-wrap:anywhere}
 .transcribe-remove{font-size:.78rem;padding:0;margin:.7rem 0 0}
 @media(max-width:650px){.transcript-section{padding:1.1rem;margin:2rem 0}.transcribe-panel{padding:1rem}}
+
+/* URL-first, single-step transcription */
+.transcribe-link-form{display:flex;flex-direction:column;gap:.65rem;padding:1.35rem;border:1px solid #bed1bd;background:#f3f9f2;border-radius:14px}
+.transcribe-link-form h3{font-size:1.15rem;margin:0 0 .2rem}
+.transcribe-link-form label{font-size:.83rem;font-weight:650}
+.transcribe-link-form input[type=url]{border:1px solid #bfcfc0;border-radius:9px;padding:.85rem;width:100%;background:white;color:#202a20;min-width:0;font-size:1rem}
+.transcribe-link-controls{display:flex;align-items:center;gap:.7rem;flex-wrap:wrap;margin-top:.2rem}
+.transcribe-link-controls select{min-width:145px;max-width:100%;border:1px solid #cdd6cc;border-radius:9px;background:white;color:#252b24;padding:.7rem}
+.transcribe-link-controls button{margin-left:auto}
+.transcribe-link-form small{line-height:1.55;color:#647268}
+.transcribe-status.status-waiting_download{background:#e8effe;color:#245c9c}
+@media(max-width:500px){.transcribe-link-controls{align-items:stretch}.transcribe-link-controls button{width:100%;margin:0}.transcribe-link-form{padding:1rem}}
