@@ -7,7 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import api_admin, api_admin_v6, api_jobs, api_music, api_passkeys_v6, api_preview, api_share, web_middleware
+from app import api_transcription, api_admin, api_admin_v6, api_jobs, api_music, api_passkeys_v6, api_preview, api_share, web_middleware
 from app.job_queue import Queue
 from app.media_policy import MEDIA_HOSTS
 from app.models import Config
@@ -58,6 +58,7 @@ def create_app(config: Config | None = None) -> FastAPI:
         return logout_response(config)
 
     api_jobs.install(app, queue, config, get_owner)
+    api_transcription.install(app, queue, config, get_owner)
     api_music.install(app, queue, get_owner)
     api_preview.install(app, config, get_owner)
     api_admin.install(app, queue, config, key)
@@ -80,7 +81,7 @@ def create_app(config: Config | None = None) -> FastAPI:
     @app.get("/api/capabilities")
     async def capabilities():
         return {"version": RELEASE_VERSION, "formats": ["mp4","mp3","mkv","mka","m4a","opus","webm","flac","wav","aac","gif","webp"],
-                "features": {"batch": True, "uploads": True, "advanced": True, "shares": True, "pwa": True, "api_tokens": True}}
+                "features": {"batch": True, "uploads": True, "advanced": True, "shares": True, "pwa": True, "api_tokens": True, "transcription": True}}
 
     @app.get("/manifest.webmanifest")
     async def manifest():
