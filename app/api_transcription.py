@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 
 from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from app.web_auth import require_scope
 from app.models import Submission
 
@@ -137,7 +137,11 @@ def install(app, queue, config, owner):
         identity = owner(request); require_scope(request, "jobs:write")
         language_code(body.language)
         # Submission uses the same link validation and SSRF protections as Crate.
-        conversion = Submission(url=body.url, format="mp3", quality="best", priority="low")
+        try:
+            conversion = Submission(url=body.url, format="mp3", quality="best", priority="low")
+        except ValidationError as exc:
+            message = str(exc.errors()[0].get("msg", "Invalid public media link."))
+            raise HTTPException(422, message) from exc
         with database() as db:
             count = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('waiting_download','queued','extracting','transcribing')").fetchone()[0]
             mine = db.execute("SELECT COUNT(*) FROM transcripts WHERE owner=? AND status IN ('waiting_download','queued','extracting','transcribing')",
