@@ -8,11 +8,13 @@ import sqlite3
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from fastapi import File, Form, HTTPException, Request, UploadFile
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from app.web_auth import require_scope
+from app.models import Submission
 
 ROOT = Path(os.getenv("CRATE_TRANSCRIPTS_DIR", "/var/lib/crate/transcriptions"))
 FORMATS = {"mp4", "mp3", "mkv", "mka", "m4a", "opus", "webm", "flac", "wav", "aac",
@@ -20,13 +22,18 @@ FORMATS = {"mp4", "mp3", "mkv", "mka", "m4a", "opus", "webm", "flac", "wav", "aa
 EXPORTS = {"txt": "text/plain; charset=utf-8", "srt": "application/x-subrip",
            "vtt": "text/vtt", "json": "application/json"}
 LANGUAGES = {"auto", "en", "es", "fr", "de", "pt", "it", "ja", "ko", "zh", "ru", "ar", "hi"}
-ACTIVE = ("queued", "extracting", "transcribing")
+ACTIVE = ("waiting_download", "queued", "extracting", "transcribing")
 MAX_PENDING = 20
 MAX_OWNER_PENDING = 3
 
 
 class SourceJob(BaseModel):
     job_id: str = Field(min_length=1, max_length=100)
+    language: str = "auto"
+
+
+class URLSubmission(BaseModel):
+    url: str = Field(min_length=8, max_length=2048)
     language: str = "auto"
 
 
@@ -42,8 +49,11 @@ def database():
         language TEXT NOT NULL, status TEXT NOT NULL, progress INTEGER NOT NULL DEFAULT 0,
         message TEXT NOT NULL DEFAULT '', error TEXT NOT NULL DEFAULT '',
         detected_language TEXT NOT NULL DEFAULT '', segment_count INTEGER NOT NULL DEFAULT 0,
-        created_at REAL NOT NULL, updated_at REAL NOT NULL
+        created_at REAL NOT NULL, updated_at REAL NOT NULL,
+        download_job_id TEXT NOT NULL DEFAULT ''
     )""")
+    if "download_job_id" not in {col["name"] for col in db.execute("PRAGMA table_info(transcripts)")}:
+        db.execute("ALTER TABLE transcripts ADD COLUMN download_job_id TEXT NOT NULL DEFAULT ''")
     db.execute("CREATE INDEX IF NOT EXISTS ix_transcripts_owner ON transcripts(owner,created_at)")
     db.commit()
     return db
@@ -54,7 +64,7 @@ def public(row):
         return None
     return {key: row[key] for key in (
         "id", "filename", "language", "status", "progress", "message", "error",
-        "detected_language", "segment_count", "created_at", "updated_at")}
+        "detected_language", "segment_count", "created_at", "updated_at", "download_job_id")}
 
 
 def language_code(value):
@@ -75,8 +85,8 @@ def add_job(db, identity, filename, source, uploaded, language):
     language_code(language)
     if not source.is_file():
         raise HTTPException(404, "The media file no longer exists.")
-    count = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('queued','extracting','transcribing')").fetchone()[0]
-    mine = db.execute("SELECT COUNT(*) FROM transcripts WHERE owner=? AND status IN ('queued','extracting','transcribing')",
+    count = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('waiting_download','queued','extracting','transcribing')").fetchone()[0]
+    mine = db.execute("SELECT COUNT(*) FROM transcripts WHERE owner=? AND status IN ('waiting_download','queued','extracting','transcribing')",
                       (identity,)).fetchone()[0]
     if count >= MAX_PENDING or mine >= MAX_OWNER_PENDING:
         raise HTTPException(429, "The transcription queue is full. Try again after a job finishes.")
@@ -122,6 +132,30 @@ def install(app, queue, config, owner):
             return public(add_job(db, identity, job.get("filename") or source.name,
                                   source, False, body.language))
 
+    @app.post("/api/transcriptions/from-url", status_code=202)
+    async def from_url(body: URLSubmission, request: Request):
+        identity = owner(request); require_scope(request, "jobs:write")
+        language_code(body.language)
+        # Submission uses the same link validation and SSRF protections as Crate.
+        conversion = Submission(url=body.url, format="mp3", quality="best", priority="low")
+        with database() as db:
+            count = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('waiting_download','queued','extracting','transcribing')").fetchone()[0]
+            mine = db.execute("SELECT COUNT(*) FROM transcripts WHERE owner=? AND status IN ('waiting_download','queued','extracting','transcribing')",
+                              (identity,)).fetchone()[0]
+            if count >= MAX_PENDING or mine >= MAX_OWNER_PENDING:
+                raise HTTPException(429, "The transcription queue is full. Try again after a job finishes.")
+            job = queue.submit(identity, conversion)
+            now = time.time()
+            ident = uuid.uuid4().hex
+            host = (urlsplit(conversion.url).hostname or "media")
+            label = "Link from " + host
+            db.execute("""INSERT INTO transcripts
+                (id,owner,filename,source_path,uploaded,language,status,progress,message,created_at,updated_at,download_job_id)
+                VALUES (?,?,?,'',1,?,'waiting_download',0,'Preparing media download',?,?,?)""",
+                (ident, identity, label[:180], body.language, now, now, job["id"]))
+            db.commit()
+            return public(own(db, identity, ident))
+
     @app.post("/api/transcriptions/upload", status_code=202)
     async def upload(request: Request, file: UploadFile = File(...), language: str = Form("auto")):
         identity = owner(request); require_scope(request, "jobs:write")
@@ -130,7 +164,7 @@ def install(app, queue, config, owner):
         if filename.rsplit(".", 1)[-1].lower() not in FORMATS or "." not in filename:
             raise HTTPException(422, "Unsupported media format.")
         with database() as db:
-            counts = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('queued','extracting','transcribing')").fetchone()[0]
+            counts = db.execute("SELECT COUNT(*) FROM transcripts WHERE status IN ('waiting_download','queued','extracting','transcribing')").fetchone()[0]
             mine = db.execute("SELECT COUNT(*) FROM transcripts WHERE owner=? AND status IN ('queued','extracting','transcribing')", (identity,)).fetchone()[0]
         if counts >= MAX_PENDING or mine >= MAX_OWNER_PENDING:
             raise HTTPException(429, "The transcription queue is full.")
@@ -187,8 +221,10 @@ def install(app, queue, config, owner):
             row = own(db, identity, transcript_id)
             if row["status"] in ("extracting", "transcribing"):
                 raise HTTPException(409, "A running transcription cannot be deleted.")
-            if row["uploaded"]:
-                Path(row["source_path"]).unlink(missing_ok=True)
+            if row["uploaded"] and row["source_path"]:
+                path = Path(row["source_path"])
+                if path.resolve().is_relative_to(ROOT.resolve()):
+                    path.unlink(missing_ok=True)
             for ext in EXPORTS:
                 (ROOT / transcript_id / ("transcript." + ext)).unlink(missing_ok=True)
             try: (ROOT / transcript_id).rmdir()
