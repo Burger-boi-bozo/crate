@@ -1,0 +1,31 @@
+[Unit]
+Description=Crate local speech transcription worker
+After=network-online.target crate.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=crate
+Group=crate
+WorkingDirectory=/opt/crate-current
+Environment=CRATE_TRANSCRIPTS_DIR=/var/lib/crate/transcriptions
+Environment=CRATE_TRANSCRIBE_MODEL=base
+Environment=CRATE_TRANSCRIBE_THREADS=2
+Environment=HF_HUB_DISABLE_TELEMETRY=1
+Environment=HF_HOME=/var/lib/crate/transcriptions/hf-cache
+Environment=HF_HUB_DISABLE_XET=1
+ExecStart=/opt/crate-transcriber-venv/bin/python -u -m app.transcription_worker
+Restart=on-failure
+RestartSec=10
+Nice=15
+CPUQuota=120%
+MemoryMax=1800M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/crate/transcriptions
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target
