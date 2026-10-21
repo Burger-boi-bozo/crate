@@ -114,7 +114,7 @@
     active = next;
     if (scroll && changed) {
       const behavior = matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
-      window.scrollTo({top: 0, behavior});
+      tabs.scrollIntoView({behavior, block: "start"});
     }
   }
 
@@ -144,6 +144,12 @@
   });
   window.addEventListener("hashchange", () => select(fromHash()));
   window.addEventListener("popstate", () => select(fromHash()));
-  select(fromHash());
+  const initial = fromHash();
+  select(initial);
+  if (initial === "transcribe") {
+    window.addEventListener("load", () => {
+      requestAnimationFrame(() => tabs.scrollIntoView({block: "start"}));
+    }, {once: true});
+  }
   document.documentElement.classList.add("studio-ready");
 })();
